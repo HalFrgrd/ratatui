@@ -663,10 +663,7 @@ mod tests {
             );
         }
 
-        assert_eq!(
-            terminal.backend().buffer()[(viewport_area.x, viewport_area.y)].symbol(),
-            "i"
-        );
+        assert_eq!(terminal.backend().buffer()[(0, 0)].symbol(), "i");
     }
 
     /// Inline viewports are autoresized during `draw`.
@@ -726,8 +723,7 @@ mod tests {
             "inline viewport stays anchored relative to the cursor across a grow"
         );
         assert_eq!(
-            terminal.backend().buffer()[(terminal.viewport_area.x, terminal.viewport_area.y)]
-                .symbol(),
+            terminal.backend().buffer()[(0, 0)].symbol(),
             "g",
             "render output lands at the recomputed viewport origin"
         );
@@ -778,12 +774,11 @@ mod tests {
         );
         assert_eq!(
             terminal.viewport_area,
-            Rect::new(0, 1, 6, 4),
-            "inline viewport is recomputed to stay visible after a shrink"
+            Rect::new(0, 0, 6, 4),
+            "inline viewport is relative"
         );
         assert_eq!(
-            terminal.backend().buffer()[(terminal.viewport_area.x, terminal.viewport_area.y)]
-                .symbol(),
+            terminal.backend().buffer()[(0, 0)].symbol(),
             "s",
             "render output lands at the recomputed viewport origin"
         );

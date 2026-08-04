@@ -278,6 +278,13 @@ impl Backend for TestBackend {
         Ok(())
     }
 
+    fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> Result<()> {
+        let new_x = (self.pos.0 as i16 + dx).max(0) as u16;
+        let new_y = (self.pos.1 as i16 + dy).max(0) as u16;
+        self.pos = (new_x, new_y);
+        Ok(())
+    }
+
     fn clear(&mut self) -> Result<()> {
         self.buffer.reset();
         Ok(())

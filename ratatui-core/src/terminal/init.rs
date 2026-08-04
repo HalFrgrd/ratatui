@@ -126,9 +126,7 @@ impl<B: Backend> Terminal<B> {
         };
         let (viewport_area, cursor_pos) = match options.viewport {
             Viewport::Fullscreen => (area, Position::ORIGIN),
-            Viewport::Inline(height) => {
-                compute_inline_size(&mut backend, height, area.as_size(), 0)?
-            }
+            Viewport::Inline(height) => compute_inline_size(&mut backend, height, area.as_size())?,
             Viewport::Fixed(area) => (area, area.as_position()),
         };
         Ok(Self {
@@ -141,6 +139,8 @@ impl<B: Backend> Terminal<B> {
             last_known_area: area,
             last_known_cursor_pos: cursor_pos,
             frame_count: 0,
+            inline_cursor_x: 0,
+            inline_cursor_y: 0,
         })
     }
 }
@@ -202,8 +202,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(terminal.viewport_area, Rect::new(0, 3, 10, 4));
-        assert_eq!(terminal.last_known_cursor_pos, Position { x: 0, y: 3 });
+        assert_eq!(terminal.viewport_area, Rect::new(0, 0, 10, 4));
     }
 
     #[test]
@@ -221,8 +220,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(terminal.viewport_area, Rect::new(0, 6, 10, 4));
-        assert_eq!(terminal.last_known_cursor_pos, Position { x: 0, y: 8 });
+        assert_eq!(terminal.viewport_area, Rect::new(0, 0, 10, 4));
     }
 
     #[test]

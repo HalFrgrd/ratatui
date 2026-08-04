@@ -250,37 +250,6 @@ use crate::layout::{Position, Rect};
 /// near the bottom edge, terminals scroll; Ratatui accounts for that scrolling by shifting the
 /// computed viewport origin upward so the viewport stays fully visible.
 ///
-/// While running in inline mode, [`Terminal::insert_before`] can be used to print output above the
-/// viewport without disturbing the UI's logical position. When Ratatui is built with the
-/// `scrolling-regions` feature, `insert_before` can do this without clearing and redrawing the
-/// viewport.
-///
-/// ```rust,no_run
-/// # #![allow(unexpected_cfgs)]
-/// # #[cfg(feature = "crossterm")]
-/// # {
-/// use ratatui::{TerminalOptions, Viewport};
-///
-/// println!("Some output above the UI");
-///
-/// let options = TerminalOptions {
-///     viewport: Viewport::Inline(10),
-/// };
-/// let mut terminal = ratatui::try_init_with_options(options)?;
-///
-/// terminal.insert_before(1, |buf| {
-///     // Render a single line of output into `buf` before the UI.
-///     // (For example: logs, status updates, or command output.)
-/// })?;
-///
-/// terminal.draw(|frame| {
-///     // Continue rendering the inline UI relative to the inline viewport.
-///     frame.render_widget("inline ui", frame.area());
-/// })?;
-/// # }
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-///
 /// # More Information
 ///
 /// - Choosing a viewport: [`Terminal::with_options`], [`TerminalOptions`], and [`Viewport`]
@@ -290,7 +259,6 @@ use crate::layout::{Position, Rect};
 ///   [`Terminal::show_cursor`]
 /// - Manual rendering and testing: [`Terminal::get_frame`], [`Terminal::flush`], and
 ///   [`Terminal::swap_buffers`]
-/// - Printing above an inline UI: [`Terminal::insert_before`]
 ///
 /// # Initialization
 ///
@@ -335,7 +303,7 @@ use crate::layout::{Position, Rect};
 /// - draw cell updates (used by [`Terminal::flush`])
 /// - clear regions (used by [`Terminal::clear`] and [`Terminal::resize`])
 /// - move and show/hide the cursor (used by [`Terminal::try_draw`])
-/// - optionally append lines (used by inline viewports and by [`Terminal::insert_before`])
+/// - optionally append lines (used by inline viewports)
 ///
 /// ## Buffers and diffing
 ///
@@ -379,10 +347,6 @@ use crate::layout::{Position, Rect};
 /// visible. On resize, Ratatui recomputes the inline origin while trying to keep the cursor at the
 /// same relative row inside the viewport.
 ///
-/// When Ratatui is built with the `scrolling-regions` feature, [`Terminal::insert_before`] uses
-/// terminal scrolling regions to insert content above an inline viewport without clearing and
-/// redrawing it.
-///
 /// [Crossterm]: https://crates.io/crates/crossterm
 /// [Termion]: https://crates.io/crates/termion
 /// [Termwiz]: https://crates.io/crates/termwiz
@@ -421,14 +385,12 @@ where
     /// The configured [`Viewport`] mode.
     ///
     /// This determines how the initial viewport area is computed during construction, whether
-    /// [`Terminal::autoresize`] runs, how [`Terminal::clear`] behaves, and whether operations like
-    /// [`Terminal::insert_before`] have any effect.
+    /// [`Terminal::autoresize`] runs, and how [`Terminal::clear`] behaves.
     viewport: Viewport,
     /// The current viewport rectangle in terminal coordinates.
     ///
     /// This is the area returned by [`Frame::area`] and the size of the internal buffers. It is
-    /// set during construction and updated by [`Terminal::resize`]. In inline mode, calls to
-    /// [`Terminal::insert_before`] can also move the viewport vertically.
+    /// set during construction and updated by [`Terminal::resize`].
     viewport_area: Rect,
     /// Last known renderable "screen" area.
     ///
@@ -455,6 +417,10 @@ where
     /// This increments after each successful [`Terminal::draw`] / [`Terminal::try_draw`] and wraps
     /// at `usize::MAX`.
     frame_count: usize,
+    /// The current 0-indexed cursor column relative to the inline viewport top (0..W-1).
+    pub(crate) inline_cursor_x: u16,
+    /// The current 0-indexed cursor row relative to the inline viewport top (0..H-1).
+    pub(crate) inline_cursor_y: u16,
 }
 
 /// Options to pass to [`Terminal::with_options`]

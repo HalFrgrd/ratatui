@@ -25,7 +25,7 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::macros::line;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::Span;
-use ratatui::widgets::{Block, Gauge, List, ListItem, Widget};
+use ratatui::widgets::{Block, Gauge, List, ListItem};
 use ratatui::{DefaultTerminal, Frame, TerminalOptions, Viewport};
 
 const INITIAL_HEIGHT: u16 = 6;
@@ -123,21 +123,10 @@ impl App {
         terminal.set_viewport_height(self.height)
     }
 
-    fn insert_line(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    fn insert_line(&mut self, _terminal: &mut DefaultTerminal) -> io::Result<()> {
         self.insert_count += 1;
         let message = format!("Inserted line #{}", self.insert_count);
         self.messages.push(message);
-
-        let now = self.start_time.elapsed();
-        terminal.insert_before(1, |buf| {
-            let inserted_line = format!(
-                "📝 Inserted line #{} at {:02}:{:02}",
-                self.insert_count,
-                now.as_secs() / 60,
-                now.as_secs() % 60
-            );
-            inserted_line.green().bold().render(buf.area, buf);
-        })?;
         Ok(())
     }
 

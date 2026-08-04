@@ -134,10 +134,6 @@
 //!
 //! let mut terminal = ratatui::init_with_options(options);
 //!
-//! terminal.insert_before(1, |buf| {
-//!     "> Ready".render(buf.area, buf);
-//! })?;
-//!
 //! loop {
 //!     terminal.draw(|frame| {
 //!         frame.render_widget("Inline UI lives below earlier terminal output", frame.area());

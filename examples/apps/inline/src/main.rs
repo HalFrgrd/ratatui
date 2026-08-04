@@ -21,7 +21,7 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Gauge, LineGauge, List, ListItem, Paragraph, Widget};
+use ratatui::widgets::{Block, Gauge, LineGauge, List, ListItem};
 use ratatui::{Frame, Terminal, TerminalOptions, Viewport, symbols};
 
 fn main() -> Result<()> {
@@ -189,29 +189,12 @@ where
                 download.progress = progress;
                 redraw = false;
             }
-            Event::DownloadDone(worker_id, download_id) => {
-                let download = downloads.in_progress.remove(&worker_id).unwrap();
-                terminal.insert_before(1, |buf| {
-                    Paragraph::new(Line::from(vec![
-                        Span::from("Finished "),
-                        Span::styled(
-                            format!("download {download_id}"),
-                            Style::default().add_modifier(Modifier::BOLD),
-                        ),
-                        Span::from(format!(
-                            " in {}ms",
-                            download.started_at.elapsed().as_millis()
-                        )),
-                    ]))
-                    .render(buf.area, buf);
-                })?;
+            Event::DownloadDone(worker_id, _download_id) => {
+                let _download = downloads.in_progress.remove(&worker_id).unwrap();
                 match downloads.next(worker_id) {
                     Some(d) => workers[worker_id].tx.send(d).unwrap(),
                     None => {
                         if downloads.in_progress.is_empty() {
-                            terminal.insert_before(1, |buf| {
-                                Paragraph::new("Done !").render(buf.area, buf);
-                            })?;
                             break;
                         }
                     }

@@ -291,6 +291,73 @@ where
         );
     }
 
+    fn draw_relative_line<'a, I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)>,
+    {
+        use crossterm::cursor::MoveRight;
+        let mut fg = Color::Reset;
+        let mut bg = Color::Reset;
+        #[cfg(feature = "underline-color")]
+        let mut underline_color = Color::Reset;
+        let mut modifier = Modifier::empty();
+        let mut last_pos: Option<Position> = None;
+        for (x, y, cell) in content {
+            if let Some(p) = last_pos {
+                if x != p.x + 1 || y != p.y {
+                    let dx = x as i16 - p.x as i16;
+                    if dx > 0 {
+                        queue!(self.writer, MoveRight(dx as u16))?;
+                    }
+                }
+            }
+            last_pos = Some(Position { x, y });
+            if cell.modifier != modifier {
+                let diff = ModifierDiff {
+                    from: modifier,
+                    to: cell.modifier,
+                };
+                diff.queue(&mut self.writer)?;
+                modifier = cell.modifier;
+            }
+            if cell.fg != fg || cell.bg != bg {
+                queue!(
+                    self.writer,
+                    SetColors(CrosstermColors::new(
+                        cell.fg.into_crossterm(),
+                        cell.bg.into_crossterm()
+                    ))
+                )?;
+                fg = cell.fg;
+                bg = cell.bg;
+            }
+            #[cfg(feature = "underline-color")]
+            if cell.underline_color != underline_color {
+                let color = cell.underline_color.into_crossterm();
+                queue!(self.writer, SetUnderlineColor(color))?;
+                underline_color = cell.underline_color;
+            }
+
+            queue!(self.writer, Print(cell.symbol()))?;
+        }
+
+        #[cfg(feature = "underline-color")]
+        return queue!(
+            self.writer,
+            SetForegroundColor(CrosstermColor::Reset),
+            SetBackgroundColor(CrosstermColor::Reset),
+            SetUnderlineColor(CrosstermColor::Reset),
+            SetAttribute(CrosstermAttribute::Reset),
+        );
+        #[cfg(not(feature = "underline-color"))]
+        return queue!(
+            self.writer,
+            SetForegroundColor(CrosstermColor::Reset),
+            SetBackgroundColor(CrosstermColor::Reset),
+            SetAttribute(CrosstermAttribute::Reset),
+        );
+    }
+
     fn hide_cursor(&mut self) -> io::Result<()> {
         execute!(self.writer, Hide)
     }
@@ -308,6 +375,20 @@ where
     fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
         let Position { x, y } = position.into();
         execute!(self.writer, MoveTo(x, y))
+    }
+
+    fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> io::Result<()> {
+        if dy < 0 {
+            queue!(self.writer, crossterm::cursor::MoveUp((-dy) as u16))?;
+        } else if dy > 0 {
+            queue!(self.writer, crossterm::cursor::MoveDown(dy as u16))?;
+        }
+        if dx < 0 {
+            queue!(self.writer, crossterm::cursor::MoveToColumn(0))?;
+        } else if dx > 0 {
+            queue!(self.writer, crossterm::cursor::MoveRight(dx as u16))?;
+        }
+        self.writer.flush()
     }
 
     fn clear(&mut self) -> io::Result<()> {

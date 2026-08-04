@@ -186,6 +186,62 @@ where
         write!(self.terminal, "{string}{}", Csi::Sgr(Sgr::Reset))
     }
 
+    fn draw_relative_line<'a, I>(&mut self, content: I) -> io::Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)>,
+    {
+        use std::fmt::Write as _;
+        let mut string = String::with_capacity(content.size_hint().0 * 3);
+        let mut fg = Color::Reset;
+        let mut bg = Color::Reset;
+        #[cfg(feature = "underline-color")]
+        let mut underline_color = Color::Reset;
+        let mut modifier = Modifier::empty();
+        let mut last_pos: Option<Position> = None;
+
+        for (x, y, cell) in content {
+            if let Some(p) = last_pos {
+                if x != p.x + 1 || y != p.y {
+                    let dx = x as i16 - p.x as i16;
+                    if dx > 0 {
+                        write!(string, "\x1b[{}C", dx).unwrap();
+                    }
+                }
+            }
+            last_pos = Some(Position { x, y });
+
+            let mut attributes = SgrAttributes::default();
+            if cell.fg != fg {
+                attributes.foreground = Some(cell.fg.into_termina());
+                fg = cell.fg;
+            }
+            if cell.bg != bg {
+                attributes.background = Some(cell.bg.into_termina());
+                bg = cell.bg;
+            }
+            #[cfg(feature = "underline-color")]
+            if cell.underline_color != underline_color {
+                attributes.underline_color = Some(cell.underline_color.into_termina());
+                underline_color = cell.underline_color;
+            }
+            if cell.modifier != modifier {
+                attributes.modifiers = ModifierDiff {
+                    from: modifier,
+                    to: cell.modifier,
+                }
+                .into_termina();
+                modifier = cell.modifier;
+            }
+            if !attributes.is_empty() {
+                write!(string, "{}", Csi::Sgr(Sgr::Attributes(attributes))).unwrap();
+            }
+
+            string.push_str(cell.symbol());
+        }
+
+        write!(self.terminal, "{string}{}", Csi::Sgr(Sgr::Reset))
+    }
+
     fn hide_cursor(&mut self) -> io::Result<()> {
         let command = decreset!(ShowCursor);
         write!(self.terminal, "{command}")?;
@@ -223,6 +279,26 @@ where
         let command = Csi::Cursor(cursor_position(position.into())?);
         write!(self.terminal, "{command}")?;
         self.terminal.flush()
+    }
+
+    fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> io::Result<()> {
+        use std::fmt::Write as _;
+        let mut string = String::new();
+        if dy < 0 {
+            write!(string, "\x1b[{}A", -dy).unwrap();
+        } else if dy > 0 {
+            write!(string, "\x1b[{}B", dy).unwrap();
+        }
+        if dx < 0 {
+            write!(string, "\r").unwrap();
+        } else if dx > 0 {
+            write!(string, "\x1b[{}C", dx).unwrap();
+        }
+        if !string.is_empty() {
+            write!(self.terminal, "{string}")?;
+            self.terminal.flush()?;
+        }
+        Ok(())
     }
 
     fn clear(&mut self) -> io::Result<()> {

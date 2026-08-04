@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::layout::Position;
-use crate::terminal::Terminal;
+use crate::terminal::{Terminal, Viewport};
 
 impl<B: Backend> Terminal<B> {
     /// Hides the cursor.
@@ -79,7 +79,17 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), B::Error> {
         let position = position.into();
-        self.backend.set_cursor_position(position)?;
+        if matches!(self.viewport, Viewport::Inline(_)) {
+            let dy = position.y as i32 - self.inline_cursor_y as i32;
+            let dx = position.x as i32 - self.inline_cursor_x as i32;
+            if dy != 0 || dx != 0 {
+                self.backend.move_cursor_relative(dx as i16, dy as i16)?;
+            }
+            self.inline_cursor_x = position.x;
+            self.inline_cursor_y = position.y;
+        } else {
+            self.backend.set_cursor_position(position)?;
+        }
         self.last_known_cursor_pos = position;
         Ok(())
     }
