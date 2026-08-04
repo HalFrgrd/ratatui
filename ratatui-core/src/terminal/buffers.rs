@@ -121,10 +121,13 @@ impl<B: Backend> Terminal<B> {
         let width = self.viewport_area.width;
         let height = self.viewport_area.height;
         let current = self.current;
+        let force_redraw = self.force_full_redraw;
+        self.force_full_redraw = false;
 
         for i in 0..height {
-            let line_changed = (0..width)
-                .any(|col| self.buffers[1 - current][(col, i)] != self.buffers[current][(col, i)]);
+            let line_changed = force_redraw
+                || (0..width)
+                    .any(|col| self.buffers[1 - current][(col, i)] != self.buffers[current][(col, i)]);
             if line_changed {
                 self.set_cursor_position(Position { x: 0, y: i })?;
 
@@ -173,10 +176,7 @@ impl<B: Backend> Terminal<B> {
     ///   viewport untouched.
     ///
     /// Current behavior: for [`Viewport::Inline`], clearing runs from the viewport origin through
-    /// the end of the visible display area, not just the viewport's rectangle. This is an
-    /// implementation detail rather than a contract; do not rely on it.
-    ///
-    /// This preserves the backend's current cursor position.
+    /// the bottom of the viewport area.
     ///
     /// This also resets the "previous" buffer so the next [`Terminal::flush`] redraws the full
     /// viewport.
@@ -185,9 +185,17 @@ impl<B: Backend> Terminal<B> {
     ///
     /// Implementation note: this uses [`ClearType::AfterCursor`] starting at the viewport origin.
     pub fn clear(&mut self) -> Result<(), B::Error> {
-        let original_cursor = self.backend.get_cursor_position()?;
-        self.clear_viewport()?;
-        self.backend.set_cursor_position(original_cursor)?;
+        if matches!(self.viewport, Viewport::Inline(_)) {
+            self.clear_viewport()?;
+            self.backend.clear_region(ClearType::All)?;
+            self.backend.set_cursor_position(Position::ORIGIN)?;
+            self.inline_cursor_x = 0;
+            self.inline_cursor_y = 0;
+        } else {
+            let original_cursor = self.backend.get_cursor_position()?;
+            self.clear_viewport()?;
+            self.backend.set_cursor_position(original_cursor)?;
+        }
         Ok(())
     }
 
@@ -199,18 +207,22 @@ impl<B: Backend> Terminal<B> {
         match self.viewport {
             Viewport::Fullscreen => self.backend.clear_region(ClearType::All)?,
             Viewport::Inline(_) => {
-                let width = self.viewport_area.width;
-                self.backend.move_cursor_relative(-(width as i16), 0)?;
+                let dx = -(self.inline_cursor_x as i16);
+                let dy = -(self.inline_cursor_y as i16);
+                self.backend.move_cursor_relative(dx, dy)?;
                 self.backend.clear_region(ClearType::AfterCursor)?;
+                self.inline_cursor_x = 0;
+                self.inline_cursor_y = 0;
             }
             Viewport::Fixed(_) => {
                 let area = self.viewport_area;
                 self.clear_fixed_viewport(area)?;
             }
         }
-        // Reset both buffers to make sure the next update will redraw everything.
+        // Reset both buffers and force a full redraw on the next update.
         self.buffers[0].reset();
         self.buffers[1].reset();
+        self.force_full_redraw = true;
         Ok(())
     }
 
@@ -468,5 +480,62 @@ mod tests {
         terminal.clear_viewport().unwrap();
 
         assert_eq!(terminal.backend().cursor_position(), Position::new(0, 2));
+    }
+
+    #[test]
+    fn clear_terminal_inline_resets_cursor_to_origin_and_forces_full_redraw() {
+        let backend = TestBackend::new(10, 3);
+        let options = TerminalOptions {
+            viewport: Viewport::Inline(3),
+        };
+        let mut terminal = Terminal::with_options(backend, options).unwrap();
+
+        terminal
+            .draw(|frame| {
+                frame.render_widget("Hello", frame.area());
+            })
+            .unwrap();
+
+        terminal.clear().unwrap();
+
+        assert_eq!(terminal.backend().cursor_position(), Position::ORIGIN);
+        assert_eq!(terminal.inline_cursor_x, 0);
+        assert_eq!(terminal.inline_cursor_y, 0);
+        assert!(terminal.force_full_redraw);
+
+        // Verify next draw pass re-renders all lines completely
+        terminal
+            .draw(|frame| {
+                frame.render_widget("World", frame.area());
+            })
+            .unwrap();
+
+        terminal.backend().assert_buffer_lines([
+            "World     ",
+            "          ",
+            "          ",
+        ]);
+    }
+
+    #[test]
+    fn clear_terminal_inline_when_cursor_started_at_non_zero_row() {
+        let mut backend = TestBackend::with_lines([
+            "line 0    ",
+            "line 1    ",
+            "line 2    ",
+            "line 3    ",
+        ]);
+        backend.set_cursor_position(Position { x: 3, y: 2 }).unwrap();
+
+        let options = TerminalOptions {
+            viewport: Viewport::Inline(2),
+        };
+        let mut terminal = Terminal::with_options(backend, options).unwrap();
+
+        terminal.clear().unwrap();
+
+        assert_eq!(terminal.backend().cursor_position(), Position::ORIGIN);
+        assert_eq!(terminal.inline_cursor_x, 0);
+        assert_eq!(terminal.inline_cursor_y, 0);
     }
 }

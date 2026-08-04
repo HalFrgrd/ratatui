@@ -421,6 +421,8 @@ where
     pub(crate) inline_cursor_x: u16,
     /// The current 0-indexed cursor row relative to the inline viewport top (0..H-1).
     pub(crate) inline_cursor_y: u16,
+    /// Whether the next flush must force a full redraw of all lines/cells.
+    pub(crate) force_full_redraw: bool,
 }
 
 /// Options to pass to [`Terminal::with_options`]
