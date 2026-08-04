@@ -305,11 +305,15 @@ where
         for (x, y, cell) in content {
             if let Some(p) = last_pos {
                 if x != p.x + 1 || y != p.y {
-                    let dx = x as i16 - p.x as i16;
+                    let dx = x as i16 - (p.x + 1) as i16;
                     if dx > 0 {
                         queue!(self.writer, MoveRight(dx as u16))?;
+                    } else if dx < 0 {
+                        queue!(self.writer, crossterm::cursor::MoveLeft((-dx) as u16))?;
                     }
                 }
+            } else if x > 0 {
+                queue!(self.writer, MoveRight(x))?;
             }
             last_pos = Some(Position { x, y });
             if cell.modifier != modifier {
@@ -338,7 +342,12 @@ where
                 underline_color = cell.underline_color;
             }
 
-            queue!(self.writer, Print(cell.symbol()))?;
+            let symbol = if cell.symbol().is_empty() {
+                " "
+            } else {
+                cell.symbol()
+            };
+            queue!(self.writer, Print(symbol))?;
         }
 
         #[cfg(feature = "underline-color")]
@@ -384,7 +393,7 @@ where
             queue!(self.writer, crossterm::cursor::MoveDown(dy as u16))?;
         }
         if dx < 0 {
-            queue!(self.writer, crossterm::cursor::MoveToColumn(0))?;
+            queue!(self.writer, crossterm::cursor::MoveLeft((-dx) as u16))?;
         } else if dx > 0 {
             queue!(self.writer, crossterm::cursor::MoveRight(dx as u16))?;
         }

@@ -113,4 +113,57 @@ mod tests {
         assert_eq!(observed_pos, Position { x: 0, y: 0 });
         assert_eq!(area, Rect::new(0, 0, 10, 5));
     }
+
+    #[test]
+    fn inline_viewport_cursor_position_matches_requested_position() {
+        use crate::terminal::{TerminalOptions, Viewport};
+
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = crate::terminal::Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(5),
+            },
+        )
+        .unwrap();
+
+        terminal
+            .draw(|frame| {
+                frame.set_cursor_position(Position { x: 12, y: 0 });
+            })
+            .unwrap();
+
+        assert_eq!(
+            terminal.backend_mut().get_cursor_position().unwrap(),
+            Position { x: 12, y: 0 }
+        );
+    }
+
+    #[test]
+    fn inline_viewport_cursor_at_end_of_drawn_text() {
+        use crate::terminal::{TerminalOptions, Viewport};
+
+        let backend = TestBackend::new(30, 10);
+        let mut terminal = crate::terminal::Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(5),
+            },
+        )
+        .unwrap();
+
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let text = "user@host:$ hello";
+                frame.render_widget(text, area);
+                frame.set_cursor_position(Position { x: 17, y: 0 });
+            })
+            .unwrap();
+
+        assert_eq!(
+            terminal.backend_mut().get_cursor_position().unwrap(),
+            Position { x: 17, y: 0 }
+        );
+    }
 }

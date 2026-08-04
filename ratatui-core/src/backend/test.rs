@@ -259,6 +259,22 @@ impl Backend for TestBackend {
         Ok(())
     }
 
+    fn draw_relative_line<'a, I>(&mut self, content: I) -> Result<()>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)>,
+    {
+        for (x, y, c) in content {
+            self.buffer[(x, y)] = c.clone();
+            let width = if c.symbol().is_empty() {
+                1
+            } else {
+                unicode_width::UnicodeWidthStr::width(c.symbol()) as u16
+            };
+            self.pos = ((x + width).min(self.buffer.area.width), y);
+        }
+        Ok(())
+    }
+
     fn hide_cursor(&mut self) -> Result<()> {
         self.cursor = false;
         Ok(())

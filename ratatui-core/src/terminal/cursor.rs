@@ -81,17 +81,30 @@ impl<B: Backend> Terminal<B> {
         let position = position.into();
         if matches!(self.viewport, Viewport::Inline(_)) {
             let dy = position.y as i32 - self.inline_cursor_y as i32;
-            let dx = position.x as i32 - self.inline_cursor_x as i32;
-            if dy != 0 || dx != 0 {
-                self.backend.move_cursor_relative(dx as i16, dy as i16)?;
+            if dy != 0 {
+                self.backend.move_cursor_relative(0, dy as i16)?;
+                self.inline_cursor_y = position.y;
             }
-            self.inline_cursor_x = position.x;
-            self.inline_cursor_y = position.y;
+            if self.inline_cursor_x > 0 {
+                self.backend
+                    .move_cursor_relative(-(self.inline_cursor_x as i16), 0)?;
+                self.inline_cursor_x = 0;
+            }
+            if position.x > 0 {
+                self.backend.move_cursor_relative(position.x as i16, 0)?;
+                self.inline_cursor_x = position.x;
+            }
         } else {
             self.backend.set_cursor_position(position)?;
         }
         self.last_known_cursor_pos = position;
         Ok(())
+    }
+
+    /// Resets relative in-memory cursor tracking to (0, 0).
+    pub fn reset_inline_cursor(&mut self) {
+        self.inline_cursor_x = 0;
+        self.inline_cursor_y = 0;
     }
 }
 

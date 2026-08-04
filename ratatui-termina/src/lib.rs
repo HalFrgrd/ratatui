@@ -202,11 +202,15 @@ where
         for (x, y, cell) in content {
             if let Some(p) = last_pos {
                 if x != p.x + 1 || y != p.y {
-                    let dx = x as i16 - p.x as i16;
+                    let dx = x as i16 - (p.x + 1) as i16;
                     if dx > 0 {
                         write!(string, "\x1b[{}C", dx).unwrap();
+                    } else if dx < 0 {
+                        write!(string, "\x1b[{}D", -dx).unwrap();
                     }
                 }
+            } else if x > 0 {
+                write!(string, "\x1b[{}C", x).unwrap();
             }
             last_pos = Some(Position { x, y });
 
@@ -236,7 +240,12 @@ where
                 write!(string, "{}", Csi::Sgr(Sgr::Attributes(attributes))).unwrap();
             }
 
-            string.push_str(cell.symbol());
+            let symbol = if cell.symbol().is_empty() {
+                " "
+            } else {
+                cell.symbol()
+            };
+            string.push_str(symbol);
         }
 
         write!(self.terminal, "{string}{}", Csi::Sgr(Sgr::Reset))
@@ -290,7 +299,7 @@ where
             write!(string, "\x1b[{}B", dy).unwrap();
         }
         if dx < 0 {
-            write!(string, "\r").unwrap();
+            write!(string, "\x1b[{}D", -dx).unwrap();
         } else if dx > 0 {
             write!(string, "\x1b[{}C", dx).unwrap();
         }
