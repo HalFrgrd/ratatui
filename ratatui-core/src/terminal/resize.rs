@@ -30,7 +30,7 @@ impl<B: Backend> Terminal<B> {
 
             if new_width < old_width && old_width > 0 && new_width > 0 {
                 let prev_buf = &self.buffers[1 - self.current];
-                let mut rows_above = 0u16;
+                let mut extra_rows = 0u16;
                 let max_row = self.inline_cursor_y.min(self.viewport_area.height);
                 for i in 0..max_row {
                     let mut last_col = old_width.saturating_sub(1);
@@ -51,15 +51,15 @@ impl<B: Backend> Terminal<B> {
                     } else {
                         last_col + 1
                     };
-                    let wrapped_rows_i = if w_i == 0 {
+                    let phys_rows_i = if w_i == 0 {
                         1
                     } else {
                         (w_i + new_width - 1) / new_width
                     };
-                    rows_above += wrapped_rows_i;
+                    extra_rows += phys_rows_i.saturating_sub(1);
                 }
-                let cursor_wrapped_row = self.last_known_cursor_pos.x / new_width;
-                let total_rows_up = rows_above + cursor_wrapped_row;
+                let cursor_wrap = self.inline_cursor_x / new_width;
+                let total_rows_up = self.inline_cursor_y + extra_rows + cursor_wrap;
 
                 if total_rows_up > 0 {
                     self.backend
@@ -68,6 +68,7 @@ impl<B: Backend> Terminal<B> {
                 self.backend.move_cursor_relative(-(old_width as i16), 0)?;
                 self.backend.clear_region(ClearType::AfterCursor)?;
                 self.inline_cursor_y = 0;
+                self.inline_cursor_x = 0;
             }
 
             self.set_viewport_area(Rect {
@@ -76,7 +77,9 @@ impl<B: Backend> Terminal<B> {
                 width: new_width,
                 height,
             });
-            self.buffers[1 - self.current].reset();
+            self.buffers[0].reset();
+            self.buffers[1].reset();
+            self.force_full_redraw = true;
             self.last_known_area = area;
             return Ok(());
         }
@@ -334,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn resize_inline_moves_cursor_up_when_width_shrinks_and_text_wraps() {
+    fn resize_inline_bounds_cursor_movement_to_viewport_lines() {
         let mut backend = TestBackend::with_lines([
             "12345678",
             "12345678",
@@ -352,12 +355,173 @@ mod tests {
 
         terminal.inline_cursor_x = 4;
         terminal.inline_cursor_y = 1;
-        terminal.last_known_cursor_pos = Position { x: 4, y: 1 };
 
-        // Shrink width from 8 to 4. Line 0 (8 chars) will wrap into 2 lines.
+        // Shrink width from 8 to 4. Line 0 (8 chars) wraps into 2 rows (extra_rows = 1).
+        // total_rows_up = inline_cursor_y (1) + extra_rows (1) + cursor_wrap (0) = 2.
         terminal.resize(Rect::new(0, 0, 4, 10)).unwrap();
 
         assert_eq!(terminal.inline_cursor_y, 0);
+        assert_eq!(terminal.inline_cursor_x, 0);
         assert_eq!(terminal.viewport_area.width, 4);
+        assert!(terminal.force_full_redraw);
+    }
+
+    #[test]
+    fn resize_inline_with_test_backend_preserves_scrollback_above_viewport() {
+        let mut backend = TestBackend::with_lines([
+            "echo foo  ",
+            "foo       ",
+            ">echo bar ",
+            "suggestion",
+        ]);
+        backend
+            .set_cursor_position(Position { x: 4, y: 3 })
+            .unwrap();
+
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(2),
+            },
+        )
+        .unwrap();
+
+        terminal.inline_cursor_x = 4;
+        terminal.inline_cursor_y = 1;
+
+        // Draw initial frame at width 10
+        terminal
+            .draw(|frame| {
+                let [line0, line1] = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .areas(frame.area());
+                frame.render_widget(">echo bar ", line0);
+                frame.render_widget("suggestion", line1);
+            })
+            .unwrap();
+
+        // Shrink backend and terminal width from 10 to 5.
+        terminal.backend_mut().resize(5, 10);
+        terminal.resize(Rect::new(0, 0, 5, 10)).unwrap();
+
+        assert_eq!(terminal.inline_cursor_y, 0);
+        assert_eq!(terminal.inline_cursor_x, 0);
+        assert!(terminal.force_full_redraw);
+
+        // Draw new frame at width 5
+        terminal
+            .draw(|frame| {
+                let [line0, line1] = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .areas(frame.area());
+                frame.render_widget(">echo", line0);
+                frame.render_widget("sugg ", line1);
+            })
+            .unwrap();
+
+        assert_eq!(terminal.viewport_area.width, 5);
+    }
+
+    #[test]
+    fn resize_inline_30_cols_10_rows_verifies_buffer_before_and_after() {
+        let backend = TestBackend::new(30, 10);
+
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(6),
+            },
+        )
+        .unwrap();
+
+        // Draw initial frame at width 30 (scrollback in rows 0..3, active prompt starting 4 rows down at rows 4..5)
+        terminal
+            .draw(|frame| {
+                let chunks = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .split(frame.area());
+
+                frame.render_widget(crate::text::Line::from("echo hello -------------------"), chunks[0]);
+                frame.render_widget(crate::text::Line::from("hello"), chunks[1]);
+                frame.render_widget(crate::text::Line::from("echo world"), chunks[2]);
+                frame.render_widget(crate::text::Line::from("world"), chunks[3]);
+                frame.render_widget(crate::text::Line::from(">echo 012345678901234567890123"), chunks[4]);
+                frame.render_widget(crate::text::Line::from("suggestion_tooltip_here_text30"), chunks[5]);
+            })
+            .unwrap();
+
+        // Verify buffer state BEFORE resizing (width 30, height 10)
+        // Scrollback history (rows 0..3) is intact, active prompt line starts 4 rows down (rows 4..5)
+        terminal.backend().assert_buffer_lines([
+            "echo hello -------------------",
+            "hello                         ",
+            "echo world                    ",
+            "world                         ",
+            ">echo 012345678901234567890123",
+            "suggestion_tooltip_here_text30",
+            "                              ",
+            "                              ",
+            "                              ",
+            "                              ",
+        ]);
+
+        // Position cursor on viewport line 5 (row 5 of backend, 5 rows down)
+        terminal.inline_cursor_y = 5;
+        terminal.inline_cursor_x = 28;
+
+        // Shrink backend and terminal width from 30 to 15 cols (height 10)
+        terminal.backend_mut().resize(15, 10);
+        terminal.resize(Rect::new(0, 0, 15, 10)).unwrap();
+
+        assert_eq!(terminal.inline_cursor_y, 0);
+        assert_eq!(terminal.inline_cursor_x, 0);
+        assert!(terminal.force_full_redraw);
+
+        // Draw new frame reflowed to width 15
+        terminal
+            .draw(|frame| {
+                let chunks = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .split(frame.area());
+
+                frame.render_widget(crate::text::Line::from("echo hello ----"), chunks[0]);
+                frame.render_widget(crate::text::Line::from("hello"), chunks[1]);
+                frame.render_widget(crate::text::Line::from("echo world"), chunks[2]);
+                frame.render_widget(crate::text::Line::from("world"), chunks[3]);
+                frame.render_widget(crate::text::Line::from(">echo 012345678"), chunks[4]);
+                frame.render_widget(crate::text::Line::from("suggestion_here"), chunks[5]);
+            })
+            .unwrap();
+
+        // Verify buffer state AFTER resizing (width 15, height 10)
+        // History and prompt are reflowed accurately!
+        terminal.backend().assert_buffer_lines([
+            "echo hello ----",
+            "hello          ",
+            "echo world     ",
+            "world          ",
+            ">echo 012345678",
+            "suggestion_here",
+            "               ",
+            "               ",
+            "               ",
+            "               ",
+        ]);
     }
 }
