@@ -332,4 +332,32 @@ mod tests {
             .all(|cell| cell == &crate::buffer::Cell::EMPTY);
         assert!(all_clear, "not all buffer cells are empty");
     }
+
+    #[test]
+    fn resize_inline_moves_cursor_up_when_width_shrinks_and_text_wraps() {
+        let mut backend = TestBackend::with_lines([
+            "12345678",
+            "12345678",
+        ]);
+        backend
+            .set_cursor_position(Position { x: 4, y: 1 })
+            .unwrap();
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(2),
+            },
+        )
+        .unwrap();
+
+        terminal.inline_cursor_x = 4;
+        terminal.inline_cursor_y = 1;
+        terminal.last_known_cursor_pos = Position { x: 4, y: 1 };
+
+        // Shrink width from 8 to 4. Line 0 (8 chars) will wrap into 2 lines.
+        terminal.resize(Rect::new(0, 0, 4, 10)).unwrap();
+
+        assert_eq!(terminal.inline_cursor_y, 0);
+        assert_eq!(terminal.viewport_area.width, 4);
+    }
 }
