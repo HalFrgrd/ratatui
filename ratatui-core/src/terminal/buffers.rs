@@ -131,25 +131,30 @@ impl<B: Backend> Terminal<B> {
             if line_changed {
                 self.set_cursor_position(Position { x: 0, y: i })?;
 
-                let mut last_col = width.saturating_sub(1);
-                while last_col > 0 {
-                    let cell = &self.buffers[current][(last_col, i)];
+                let mut last_col = None;
+                for col in (0..width).rev() {
+                    let cell = &self.buffers[current][(col, i)];
                     let is_whitespace = (cell.symbol() == " " || cell.symbol().is_empty())
                         && cell.style() == crate::style::Style::default();
                     if !is_whitespace {
+                        last_col = Some(col);
                         break;
                     }
-                    last_col -= 1;
                 }
 
-                let line_cells =
-                    (0..=last_col).map(|col| (col, i, &self.buffers[current][(col, i)]));
-                self.backend.draw_relative_line(line_cells)?;
-                self.inline_cursor_x = (last_col + 1).min(width);
-                if last_col + 1 < width {
-                    let next_x = last_col + 1;
-                    self.set_cursor_position(Position { x: next_x, y: i })?;
+                if let Some(last) = last_col {
+                    let line_cells =
+                        (0..=last).map(|col| (col, i, &self.buffers[current][(col, i)]));
+                    self.backend.draw_relative_line(line_cells)?;
+                    self.inline_cursor_x = last + 1;
+                    if last + 1 < width {
+                        self.set_cursor_position(Position { x: last + 1, y: i })?;
+                        self.backend.clear_region(ClearType::UntilNewLine)?;
+                    }
+                } else {
+                    self.set_cursor_position(Position { x: 0, y: i })?;
                     self.backend.clear_region(ClearType::UntilNewLine)?;
+                    self.inline_cursor_x = width;
                 }
             }
         }
@@ -537,5 +542,46 @@ mod tests {
         assert_eq!(terminal.backend().cursor_position(), Position::ORIGIN);
         assert_eq!(terminal.inline_cursor_x, 0);
         assert_eq!(terminal.inline_cursor_y, 0);
+    }
+
+    #[test]
+    fn flush_inline_does_not_print_spaces_when_clearing_line_to_blank() {
+        let backend = TestBackend::new(10, 2);
+        let options = TerminalOptions {
+            viewport: Viewport::Inline(2),
+        };
+        let mut terminal = Terminal::with_options(backend, options).unwrap();
+
+        // Frame 1: render text on line 1
+        terminal
+            .draw(|frame| {
+                let [_, line1] = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .areas(frame.area());
+                frame.render_widget("Old Text", line1);
+            })
+            .unwrap();
+
+        // Frame 2: line 1 is now cleared to blank
+        terminal
+            .draw(|frame| {
+                let [line0, _] = crate::layout::Layout::vertical([
+                    crate::layout::Constraint::Length(1),
+                    crate::layout::Constraint::Length(1),
+                ])
+                .areas(frame.area());
+                frame.render_widget("Hi", line0);
+            })
+            .unwrap();
+
+        terminal.backend().assert_buffer_lines([
+            "Hi        ",
+            "          ",
+        ]);
+        assert_eq!(terminal.inline_cursor_x, 10);
+        assert_eq!(terminal.inline_cursor_y, 1);
+        assert_eq!(terminal.backend().cursor_position(), Position::new(10, 1));
     }
 }
