@@ -48,9 +48,16 @@ impl<B: Backend> Terminal<B> {
                         let cell = &prev_buf[(0, i)];
                         let is_whitespace = (cell.symbol() == " " || cell.symbol().is_empty())
                             && cell.style() == crate::style::Style::default();
-                        if is_whitespace { 0 } else { 1 }
+                        if is_whitespace {
+                            0
+                        } else {
+                            (unicode_width::UnicodeWidthStr::width(cell.symbol()) as u16).max(1)
+                        }
                     } else {
-                        last_col + 1
+                        let cell = &prev_buf[(last_col, i)];
+                        let symbol_w =
+                            (unicode_width::UnicodeWidthStr::width(cell.symbol()) as u16).max(1);
+                        last_col + symbol_w
                     };
                     let phys_rows_i = if w_i == 0 {
                         1
