@@ -142,6 +142,7 @@ impl<B: Backend> Terminal<B> {
             inline_cursor_x: 0,
             inline_cursor_y: 0,
             force_full_redraw: false,
+            viewport_top: None,
         })
     }
 }

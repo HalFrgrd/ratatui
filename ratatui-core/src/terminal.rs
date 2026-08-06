@@ -423,6 +423,8 @@ where
     pub(crate) inline_cursor_y: u16,
     /// Whether the next flush must force a full redraw of all lines/cells.
     pub(crate) force_full_redraw: bool,
+    /// Owned absolute screen row (0-based) of the inline viewport top, if known.
+    pub(crate) viewport_top: Option<u16>,
 }
 
 /// Options to pass to [`Terminal::with_options`]

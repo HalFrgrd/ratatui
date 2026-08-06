@@ -57,6 +57,40 @@ impl<B: Backend> Terminal<B> {
         self.buffers[1 - self.current].reset();
         Ok(())
     }
+
+    /// Returns the current 0-indexed cursor row relative to the inline viewport top (0..H-1).
+    pub fn inline_cursor_y(&self) -> u16 {
+        self.inline_cursor_y
+    }
+
+    /// Returns the owned inline viewport top screen row (0-based), if known.
+    pub fn viewport_top(&self) -> Option<u16> {
+        self.viewport_top
+    }
+
+    /// Sets the owned inline viewport top screen row explicitly.
+    pub fn set_viewport_top(&mut self, top: u16) {
+        self.viewport_top = Some(top);
+    }
+
+    /// Clears the owned inline viewport top screen row (`None`), e.g. on window resize.
+    pub fn clear_viewport_top(&mut self) {
+        self.viewport_top = None;
+    }
+
+    /// Internal helper that updates `viewport_top` if expanding viewport height causes
+    /// terminal screen scrolling.
+    pub(crate) fn update_viewport_top_for_height(&mut self) {
+        if let Some(top) = self.viewport_top {
+            let content_height = self.viewport_area.height;
+            let term_height = self.last_known_area.height;
+            if term_height > 0 && top + content_height > term_height {
+                let overflow = (top + content_height) - term_height;
+                let new_top = top.saturating_sub(overflow);
+                self.viewport_top = Some(new_top);
+            }
+        }
+    }
 }
 
 /// Compute the on-screen area for an inline viewport.

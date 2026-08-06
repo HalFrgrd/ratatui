@@ -126,8 +126,9 @@ impl<B: Backend> Terminal<B> {
 
         for i in 0..height {
             let line_changed = force_redraw
-                || (0..width)
-                    .any(|col| self.buffers[1 - current][(col, i)] != self.buffers[current][(col, i)]);
+                || (0..width).any(|col| {
+                    self.buffers[1 - current][(col, i)] != self.buffers[current][(col, i)]
+                });
             if line_changed {
                 self.set_cursor_position(Position { x: 0, y: i })?;
 
@@ -515,22 +516,18 @@ mod tests {
             })
             .unwrap();
 
-        terminal.backend().assert_buffer_lines([
-            "World     ",
-            "          ",
-            "          ",
-        ]);
+        terminal
+            .backend()
+            .assert_buffer_lines(["World     ", "          ", "          "]);
     }
 
     #[test]
     fn clear_terminal_inline_when_cursor_started_at_non_zero_row() {
-        let mut backend = TestBackend::with_lines([
-            "line 0    ",
-            "line 1    ",
-            "line 2    ",
-            "line 3    ",
-        ]);
-        backend.set_cursor_position(Position { x: 3, y: 2 }).unwrap();
+        let mut backend =
+            TestBackend::with_lines(["line 0    ", "line 1    ", "line 2    ", "line 3    "]);
+        backend
+            .set_cursor_position(Position { x: 3, y: 2 })
+            .unwrap();
 
         let options = TerminalOptions {
             viewport: Viewport::Inline(2),
@@ -576,10 +573,9 @@ mod tests {
             })
             .unwrap();
 
-        terminal.backend().assert_buffer_lines([
-            "Hi        ",
-            "          ",
-        ]);
+        terminal
+            .backend()
+            .assert_buffer_lines(["Hi        ", "          "]);
         assert_eq!(terminal.inline_cursor_x, 10);
         assert_eq!(terminal.inline_cursor_y, 1);
         assert_eq!(terminal.backend().cursor_position(), Position::new(10, 1));

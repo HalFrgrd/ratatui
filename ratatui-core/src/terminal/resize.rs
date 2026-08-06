@@ -21,6 +21,7 @@ impl<B: Backend> Terminal<B> {
     /// viewport origin may move to preserve the cursor's relative row within the inline UI.
     pub fn resize(&mut self, area: Rect) -> Result<(), B::Error> {
         if matches!(self.viewport, Viewport::Inline(_)) {
+            self.viewport_top = None;
             let height = match self.viewport {
                 Viewport::Inline(h) => area.height.min(h),
                 _ => unreachable!(),
@@ -124,6 +125,7 @@ impl<B: Backend> Terminal<B> {
         self.buffers[self.current].resize(area);
         self.buffers[1 - self.current].resize(area);
         self.viewport_area = area;
+        self.update_viewport_top_for_height();
     }
 }
 
@@ -346,10 +348,7 @@ mod tests {
 
     #[test]
     fn resize_inline_bounds_cursor_movement_to_viewport_lines() {
-        let mut backend = TestBackend::with_lines([
-            "12345678",
-            "12345678",
-        ]);
+        let mut backend = TestBackend::with_lines(["12345678", "12345678"]);
         backend
             .set_cursor_position(Position { x: 4, y: 1 })
             .unwrap();
@@ -376,12 +375,8 @@ mod tests {
 
     #[test]
     fn resize_inline_with_test_backend_preserves_scrollback_above_viewport() {
-        let mut backend = TestBackend::with_lines([
-            "echo foo  ",
-            "foo       ",
-            ">echo bar ",
-            "suggestion",
-        ]);
+        let mut backend =
+            TestBackend::with_lines(["echo foo  ", "foo       ", ">echo bar ", "suggestion"]);
         backend
             .set_cursor_position(Position { x: 4, y: 3 })
             .unwrap();
@@ -459,12 +454,21 @@ mod tests {
                 ])
                 .split(frame.area());
 
-                frame.render_widget(crate::text::Line::from("echo hello -------------------"), chunks[0]);
+                frame.render_widget(
+                    crate::text::Line::from("echo hello -------------------"),
+                    chunks[0],
+                );
                 frame.render_widget(crate::text::Line::from("hello"), chunks[1]);
                 frame.render_widget(crate::text::Line::from("echo world"), chunks[2]);
                 frame.render_widget(crate::text::Line::from("world"), chunks[3]);
-                frame.render_widget(crate::text::Line::from(">echo 012345678901234567890123"), chunks[4]);
-                frame.render_widget(crate::text::Line::from("suggestion_tooltip_here_text30"), chunks[5]);
+                frame.render_widget(
+                    crate::text::Line::from(">echo 012345678901234567890123"),
+                    chunks[4],
+                );
+                frame.render_widget(
+                    crate::text::Line::from("suggestion_tooltip_here_text30"),
+                    chunks[5],
+                );
             })
             .unwrap();
 
@@ -557,8 +561,14 @@ mod tests {
                 ])
                 .split(frame.area());
 
-                frame.render_widget(crate::text::Line::from("echo hello -------------------"), chunks[0]);
-                frame.render_widget(crate::text::Line::from("prompt > 01234567890123456789"), chunks[1]);
+                frame.render_widget(
+                    crate::text::Line::from("echo hello -------------------"),
+                    chunks[0],
+                );
+                frame.render_widget(
+                    crate::text::Line::from("prompt > 01234567890123456789"),
+                    chunks[1],
+                );
                 frame.render_widget(crate::text::Line::from(">cat file.txt"), chunks[2]);
                 frame.render_widget(crate::text::Line::from("suggestion 1"), chunks[3]);
                 frame.render_widget(crate::text::Line::from("suggestion 2"), chunks[4]);
@@ -655,8 +665,14 @@ mod tests {
                 ])
                 .split(frame.area());
 
-                frame.render_widget(crate::text::Line::from("echo hello -------------------"), chunks[0]);
-                frame.render_widget(crate::text::Line::from("prompt > 01234567890123456789"), chunks[1]);
+                frame.render_widget(
+                    crate::text::Line::from("echo hello -------------------"),
+                    chunks[0],
+                );
+                frame.render_widget(
+                    crate::text::Line::from("prompt > 01234567890123456789"),
+                    chunks[1],
+                );
                 frame.render_widget(crate::text::Line::from(">cat file.txt"), chunks[2]);
                 frame.render_widget(crate::text::Line::from("suggestion 1"), chunks[3]);
                 frame.render_widget(crate::text::Line::from("suggestion 2"), chunks[4]);
