@@ -21,7 +21,16 @@ impl<B: Backend> Terminal<B> {
     /// viewport origin may move to preserve the cursor's relative row within the inline UI.
     pub fn resize(&mut self, area: Rect) -> Result<(), B::Error> {
         if matches!(self.viewport, Viewport::Inline(_)) {
-            self.viewport_top = None;
+            let old_width = self.viewport_area.width;
+            let new_width = area.width;
+            let old_height = self.last_known_area.height;
+            let new_height = area.height;
+
+            if (old_width > 0 && old_width != new_width)
+                || (old_height > 0 && old_height != new_height)
+            {
+                self.viewport_top = None;
+            }
             let height = match self.viewport {
                 Viewport::Inline(h) => area.height.min(h),
                 _ => unreachable!(),
