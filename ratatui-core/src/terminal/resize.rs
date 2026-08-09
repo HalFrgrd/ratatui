@@ -38,56 +38,12 @@ impl<B: Backend> Terminal<B> {
             let old_width = self.viewport_area.width;
             let new_width = area.width;
 
-            if old_width > 0 && new_width > 0 && old_width != new_width {
-                let prev_buf = &self.buffers[1 - self.current];
-                let max_row = self.inline_cursor_y.min(self.viewport_area.height);
-                let mut phys_y_from_top = 0u16;
+            log::info!(
+                "resize: old_width = {old_width}, new_width = {new_width}, old_height = {old_height}, new_height = {new_height}, viewport height = {height}"
+            );
 
-                for i in 0..max_row {
-                    let mut last_col = old_width.saturating_sub(1);
-                    while last_col > 0 {
-                        let cell = &prev_buf[(last_col, i)];
-                        let is_whitespace = (cell.symbol() == " " || cell.symbol().is_empty())
-                            && cell.style() == crate::style::Style::default();
-                        if !is_whitespace {
-                            break;
-                        }
-                        last_col -= 1;
-                    }
-                    let w_i = if last_col == 0 {
-                        let cell = &prev_buf[(0, i)];
-                        let is_whitespace = (cell.symbol() == " " || cell.symbol().is_empty())
-                            && cell.style() == crate::style::Style::default();
-                        if is_whitespace {
-                            0
-                        } else {
-                            (unicode_width::UnicodeWidthStr::width(cell.symbol()) as u16).max(1)
-                        }
-                    } else {
-                        let cell = &prev_buf[(last_col, i)];
-                        let symbol_w =
-                            (unicode_width::UnicodeWidthStr::width(cell.symbol()) as u16).max(1);
-                        last_col + symbol_w
-                    };
-                    let phys_rows_i = if w_i == 0 {
-                        1
-                    } else {
-                        (w_i + new_width - 1) / new_width
-                    };
-                    phys_y_from_top += phys_rows_i;
-                }
-                let cursor_wrap = self.inline_cursor_x / new_width;
-                phys_y_from_top += cursor_wrap;
-
-                if phys_y_from_top > 0 {
-                    self.backend
-                        .move_cursor_relative(0, -(phys_y_from_top as i16))?;
-                }
-                self.backend.move_cursor_relative(-(old_width as i16), 0)?;
-                self.backend.clear_region(ClearType::AfterCursor)?;
-                self.inline_cursor_y = 0;
-                self.inline_cursor_x = 0;
-            }
+            // Disabled cursor relocation and line-wrapping calculation on resize.
+            // Leaving the cursor where it is.
 
             self.set_viewport_area(Rect {
                 x: 0,

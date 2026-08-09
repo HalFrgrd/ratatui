@@ -82,6 +82,11 @@ impl<B: Backend> Terminal<B> {
         if matches!(self.viewport, Viewport::Inline(_)) {
             let dy = position.y as i32 - self.inline_cursor_y as i32;
             if dy != 0 {
+                // log::info!(
+                //     "set_cursor_position (inline): moving dy = {dy} (from row {} to target row {})",
+                //     self.inline_cursor_y,
+                //     position.y
+                // );
                 self.backend.move_cursor_relative(0, dy as i16)?;
                 self.inline_cursor_y = position.y;
             }

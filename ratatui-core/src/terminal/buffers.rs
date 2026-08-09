@@ -192,6 +192,7 @@ impl<B: Backend> Terminal<B> {
     /// Implementation note: this uses [`ClearType::AfterCursor`] starting at the viewport origin.
     pub fn clear(&mut self) -> Result<(), B::Error> {
         if matches!(self.viewport, Viewport::Inline(_)) {
+            log::info!("clear: moving cursor to viewport origin for inline clear");
             self.clear_viewport()?;
             self.backend.clear_region(ClearType::All)?;
             self.backend.set_cursor_position(Position::ORIGIN)?;
@@ -215,6 +216,9 @@ impl<B: Backend> Terminal<B> {
             Viewport::Inline(_) => {
                 let dx = -(self.inline_cursor_x as i16);
                 let dy = -(self.inline_cursor_y as i16);
+                log::info!(
+                    "clear_viewport: moving cursor relative ({dx}, {dy}) to viewport origin"
+                );
                 self.backend.move_cursor_relative(dx, dy)?;
                 self.backend.clear_region(ClearType::AfterCursor)?;
                 self.inline_cursor_x = 0;
