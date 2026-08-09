@@ -27,6 +27,9 @@ pub struct Frame<'a> {
     /// the backend.
     pub(crate) cursor_position: Option<Position>,
 
+    /// Should the terminal cursor be shown (visible) or hidden at the end of the frame pass?
+    pub(crate) cursor_visible: bool,
+
     /// The area of the viewport
     pub(crate) viewport_area: Rect,
 
@@ -165,6 +168,18 @@ impl Frame<'_> {
     /// [`Terminal::set_cursor_position`]: crate::terminal::Terminal::set_cursor_position
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) {
         self.cursor_position = Some(position.into());
+    }
+
+    /// Sets whether the terminal cursor should be visible (`true`) or hidden (`false`)
+    /// at the end of rendering this frame.
+    pub fn set_cursor_visibility(&mut self, visible: bool) {
+        self.cursor_visible = visible;
+    }
+
+    /// Sets whether the terminal cursor should be visible (`true`) or hidden (`false`)
+    /// at the end of rendering this frame.
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.cursor_visible = visible;
     }
 
     /// After this frame is rendered, make the cursor visible and put it at the specified `(x, y)`

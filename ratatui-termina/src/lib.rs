@@ -187,7 +187,11 @@ where
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
-        write!(self.terminal, "{string}{}{sync_reset}", Csi::Sgr(Sgr::Reset))
+        write!(
+            self.terminal,
+            "{string}{}{sync_reset}",
+            Csi::Sgr(Sgr::Reset)
+        )
     }
 
     fn draw_relative_line<'a, I>(&mut self, content: I) -> io::Result<()>
@@ -256,7 +260,11 @@ where
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
-        write!(self.terminal, "{string}{}{sync_reset}", Csi::Sgr(Sgr::Reset))
+        write!(
+            self.terminal,
+            "{string}{}{sync_reset}",
+            Csi::Sgr(Sgr::Reset)
+        )
     }
 
     fn hide_cursor(&mut self) -> io::Result<()> {

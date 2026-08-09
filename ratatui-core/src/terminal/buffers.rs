@@ -52,6 +52,7 @@ impl<B: Backend> Terminal<B> {
         let count = self.frame_count;
         Frame {
             cursor_position: None,
+            cursor_visible: true,
             viewport_area: self.viewport_area,
             buffer: self.current_buffer_mut(),
             count,

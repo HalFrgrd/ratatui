@@ -200,13 +200,14 @@ impl<B: Backend> Terminal<B> {
         render_callback(&mut frame).map_err(Into::into)?;
 
         let cursor_position = frame.cursor_position;
+        let cursor_visible = frame.cursor_visible;
 
-        self.apply_buffer_with_cursor(cursor_position)
+        self.apply_buffer_with_cursor(cursor_position, cursor_visible)
     }
 
     /// A low-level function that applies and flushes the current buffer to the backend.
     ///
-    /// This calls [`Terminal::apply_buffer_with_cursor`] with [`None`], which hides the cursor.
+    /// This calls [`Terminal::apply_buffer_with_cursor`] with [`None`] and `false`, which hides the cursor.
     ///
     /// # Examples
     ///
@@ -237,7 +238,7 @@ impl<B: Backend> Terminal<B> {
     /// # }
     /// ```
     pub fn apply_buffer(&mut self) -> Result<CompletedFrame<'_>, B::Error> {
-        self.apply_buffer_with_cursor(None)
+        self.apply_buffer_with_cursor(None, false)
     }
 
     /// A low-level function that applies and flushes the current buffer to the backend and
@@ -282,23 +283,30 @@ impl<B: Backend> Terminal<B> {
     /// "Hello World!".render(custom_buffer.area, &mut custom_buffer);
     ///
     /// terminal.current_buffer_mut().merge(&custom_buffer);
-    /// terminal.apply_buffer_with_cursor(None)?;
+    /// terminal.apply_buffer_with_cursor(None, false)?;
     /// # }
     /// ```
     pub fn apply_buffer_with_cursor(
         &mut self,
         cursor_position: Option<Position>,
+        cursor_visible: bool,
     ) -> Result<CompletedFrame<'_>, B::Error> {
         // Apply the buffer diff to the backend (this is the terminal's "flush" step, distinct
         // from `Backend::flush` below which flushes the backend's output).
         self.flush()?;
 
         // The cursor position can only be changed after the frame is flushed to stdout.
-        match cursor_position {
-            None => self.hide_cursor()?,
-            Some(position) => {
-                self.show_cursor()?;
+        match (cursor_position, cursor_visible) {
+            (Some(position), true) => {
                 self.set_cursor_position(position)?;
+                self.show_cursor()?;
+            }
+            (Some(position), false) => {
+                self.set_cursor_position(position)?;
+                self.hide_cursor()?;
+            }
+            (None, _) => {
+                self.hide_cursor()?;
             }
         }
 
