@@ -141,6 +141,9 @@ where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
         let mut string = String::with_capacity(content.size_hint().0 * 3);
+        let sync_set = decset!(SynchronizedOutput);
+        write!(string, "{sync_set}").unwrap();
+
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
         #[cfg(feature = "underline-color")]
@@ -183,7 +186,8 @@ where
             string.push_str(cell.symbol());
         }
 
-        write!(self.terminal, "{string}{}", Csi::Sgr(Sgr::Reset))
+        let sync_reset = decreset!(SynchronizedOutput);
+        write!(self.terminal, "{string}{}{sync_reset}", Csi::Sgr(Sgr::Reset))
     }
 
     fn draw_relative_line<'a, I>(&mut self, content: I) -> io::Result<()>
@@ -192,6 +196,9 @@ where
     {
         use std::fmt::Write as _;
         let mut string = String::with_capacity(content.size_hint().0 * 3);
+        let sync_set = decset!(SynchronizedOutput);
+        write!(string, "{sync_set}").unwrap();
+
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
         #[cfg(feature = "underline-color")]
@@ -248,7 +255,8 @@ where
             string.push_str(symbol);
         }
 
-        write!(self.terminal, "{string}{}", Csi::Sgr(Sgr::Reset))
+        let sync_reset = decreset!(SynchronizedOutput);
+        write!(self.terminal, "{string}{}{sync_reset}", Csi::Sgr(Sgr::Reset))
     }
 
     fn hide_cursor(&mut self) -> io::Result<()> {
