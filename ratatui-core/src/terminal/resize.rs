@@ -38,10 +38,6 @@ impl<B: Backend> Terminal<B> {
             let old_width = self.viewport_area.width;
             let new_width = area.width;
 
-            log::info!(
-                "resize: old_width = {old_width}, new_width = {new_width}, old_height = {old_height}, new_height = {new_height}, viewport height = {height}"
-            );
-
             // Disabled cursor relocation and line-wrapping calculation on resize.
             // Leaving the cursor where it is.
 

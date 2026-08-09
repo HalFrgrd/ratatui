@@ -293,15 +293,12 @@ where
     }
 
     fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
-        let pos = position.into();
-        log::info!("TerminaBackend::set_cursor_position: position = ({}, {})", pos.x, pos.y);
-        let command = Csi::Cursor(cursor_position(pos)?);
+        let command = Csi::Cursor(cursor_position(position.into())?);
         write!(self.terminal, "{command}")?;
         self.terminal.flush()
     }
 
     fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> io::Result<()> {
-        // log::info!("TerminaBackend::move_cursor_relative: dx = {dx}, dy = {dy}");
         use std::fmt::Write as _;
         let mut string = String::new();
         if dy < 0 {
@@ -322,12 +319,10 @@ where
     }
 
     fn clear(&mut self) -> io::Result<()> {
-        log::info!("TerminaBackend::clear");
         self.clear_region(ClearType::All)
     }
 
     fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
-        log::info!("TerminaBackend::clear_region: clear_type = {:?}", clear_type);
         let edit = match clear_type {
             ClearType::All => Edit::EraseInDisplay(EraseInDisplay::EraseDisplay),
             ClearType::AfterCursor => Edit::EraseInDisplay(EraseInDisplay::EraseToEndOfDisplay),
@@ -341,7 +336,6 @@ where
     }
 
     fn append_lines(&mut self, n: u16) -> io::Result<()> {
-        log::info!("TerminaBackend::append_lines: n = {n}");
         for _ in 0..n {
             writeln!(self.terminal)?;
         }

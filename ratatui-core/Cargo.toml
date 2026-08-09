@@ -75,7 +75,6 @@ document-features = { workspace = true, optional = true }
 hashbrown.workspace = true
 itertools.workspace = true
 kasuari = { workspace = true, default-features = false }
-log.workspace = true
 lru.workspace = true
 palette = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
