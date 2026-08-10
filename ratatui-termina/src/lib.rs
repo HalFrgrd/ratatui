@@ -345,6 +345,13 @@ where
         Ok(())
     }
 
+    fn set_cursor_column(&mut self, col: u16) -> io::Result<()> {
+        let col_one = OneBased::from_zero_based(col);
+        let command = Csi::Cursor(termina::escape::csi::Cursor::CharacterAbsolute(col_one));
+        write!(self.terminal, "{command}")?;
+        self.terminal.flush()
+    }
+
     fn clear(&mut self) -> io::Result<()> {
         self.clear_region(ClearType::All)
     }

@@ -252,6 +252,12 @@ pub trait Backend {
         Ok(())
     }
 
+    /// Set the horizontal cursor column position (0-based) while preserving the current row.
+    fn set_cursor_column(&mut self, col: u16) -> Result<(), Self::Error> {
+        let pos = self.get_cursor_position()?;
+        self.set_cursor_position(Position { x: col, y: pos.y })
+    }
+
     /// Get the current cursor position on the terminal screen.
     ///
     /// The returned tuple contains the x and y coordinates of the cursor. The origin

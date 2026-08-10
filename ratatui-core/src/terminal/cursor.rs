@@ -79,19 +79,15 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), B::Error> {
         let position = position.into();
+        log::info!("Setting cursor position to {:?}", position);
         if matches!(self.viewport, Viewport::Inline(_)) {
             let dy = position.y as i32 - self.inline_cursor_y as i32;
             if dy != 0 {
                 self.backend.move_cursor_relative(0, dy as i16)?;
                 self.inline_cursor_y = position.y;
             }
-            if self.inline_cursor_x > 0 {
-                self.backend
-                    .move_cursor_relative(-(self.inline_cursor_x as i16), 0)?;
-                self.inline_cursor_x = 0;
-            }
-            if position.x > 0 {
-                self.backend.move_cursor_relative(position.x as i16, 0)?;
+            if position.x != self.inline_cursor_x {
+                self.backend.set_cursor_column(position.x)?;
                 self.inline_cursor_x = position.x;
             }
         } else {

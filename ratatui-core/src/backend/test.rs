@@ -301,6 +301,11 @@ impl Backend for TestBackend {
         Ok(())
     }
 
+    fn set_cursor_column(&mut self, col: u16) -> Result<()> {
+        self.pos.0 = col;
+        Ok(())
+    }
+
     fn clear(&mut self) -> Result<()> {
         self.buffer.reset();
         Ok(())
