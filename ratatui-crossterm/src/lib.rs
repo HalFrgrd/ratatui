@@ -303,17 +303,8 @@ where
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
         for (x, y, cell) in content {
-            if let Some(p) = last_pos {
-                if x != p.x + 1 || y != p.y {
-                    let dx = x as i16 - (p.x + 1) as i16;
-                    if dx > 0 {
-                        queue!(self.writer, MoveRight(dx as u16))?;
-                    } else if dx < 0 {
-                        queue!(self.writer, crossterm::cursor::MoveLeft((-dx) as u16))?;
-                    }
-                }
-            } else if x > 0 {
-                queue!(self.writer, MoveRight(x))?;
+            if last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
+                queue!(self.writer, crossterm::cursor::MoveToColumn(x))?;
             }
             last_pos = Some(Position { x, y });
             if cell.modifier != modifier {

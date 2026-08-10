@@ -242,9 +242,11 @@ impl<B: Backend> Terminal<B> {
         match self.viewport {
             Viewport::Fullscreen => self.backend.clear_region(ClearType::All)?,
             Viewport::Inline(_) => {
-                let dx = -(self.inline_cursor_x as i16);
                 let dy = -(self.inline_cursor_y as i16);
-                self.backend.move_cursor_relative(dx, dy)?;
+                if dy != 0 {
+                    self.backend.move_cursor_relative(0, dy)?;
+                }
+                self.backend.set_cursor_column(0)?;
                 self.backend.clear_region(ClearType::AfterCursor)?;
                 self.inline_cursor_x = 0;
                 self.inline_cursor_y = 0;

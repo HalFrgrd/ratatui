@@ -46,8 +46,7 @@ impl<B: Backend> Terminal<B> {
             self.set_cursor_position(Position::new(0, old_height.saturating_sub(1)))?;
             self.backend.append_lines(diff)?;
             self.backend.move_cursor_relative(0, -(diff as i16))?;
-            self.backend
-                .move_cursor_relative(-(self.viewport_area.width as i16), 0)?;
+            self.backend.set_cursor_column(0)?;
             self.inline_cursor_x = 0;
             self.inline_cursor_y = old_height.saturating_sub(1);
         }
@@ -116,13 +115,13 @@ pub(crate) fn compute_inline_size<B: Backend>(
 ) -> Result<(Rect, Position), B::Error> {
     let max_height = size.height.min(height);
 
-    backend.move_cursor_relative(-(size.width as i16), 0)?;
+    backend.set_cursor_column(0)?;
 
     if max_height > 1 {
         let lines_to_append = max_height - 1;
         backend.append_lines(lines_to_append)?;
         backend.move_cursor_relative(0, -(lines_to_append as i16))?;
-        backend.move_cursor_relative(-(size.width as i16), 0)?;
+        backend.set_cursor_column(0)?;
     }
 
     Ok((
