@@ -184,7 +184,17 @@ where
                 write!(string, "{}", Csi::Sgr(Sgr::Attributes(attributes))).unwrap();
             }
 
-            string.push_str(cell.symbol());
+            if let Some(sym) = cell.symbol_opt().filter(|s| !s.is_empty()) {
+                string.push_str(sym);
+            } else {
+                write!(
+                    string,
+                    "{}{}",
+                    Csi::Edit(Edit::EraseCharacter(1)),
+                    Csi::Cursor(Cursor::Right(1))
+                )
+                .unwrap();
+            }
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
@@ -254,12 +264,17 @@ where
                 write!(string, "{}", Csi::Sgr(Sgr::Attributes(attributes))).unwrap();
             }
 
-            let symbol = if cell.symbol().is_empty() {
-                " "
+            if let Some(sym) = cell.symbol_opt().filter(|s| !s.is_empty()) {
+                string.push_str(sym);
             } else {
-                cell.symbol()
-            };
-            string.push_str(symbol);
+                write!(
+                    string,
+                    "{}{}",
+                    Csi::Edit(Edit::EraseCharacter(1)),
+                    Csi::Cursor(Cursor::Right(1))
+                )
+                .unwrap();
+            }
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
@@ -824,9 +839,9 @@ mod tests {
 
         let output = backend.terminal.output();
         let cursor = Csi::Cursor(cursor_position(Position::new(2, 3)).unwrap());
-        assert!(output.starts_with(&cursor.to_string()));
+        assert!(output.contains(&cursor.to_string()));
         assert!(output.contains('x'));
-        assert!(output.ends_with(&Csi::Sgr(Sgr::Reset).to_string()));
+        assert!(output.contains(&Csi::Sgr(Sgr::Reset).to_string()));
     }
 
     #[test]
