@@ -141,9 +141,8 @@ where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
         let mut string = String::with_capacity(content.size_hint().0 * 3);
-        let sync_set = decset!(SynchronizedOutput);
         let autowrap_off = decreset!(AutoWrap);
-        write!(string, "{sync_set}{autowrap_off}").unwrap();
+        write!(string, "{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -197,11 +196,10 @@ where
             }
         }
 
-        let sync_reset = decreset!(SynchronizedOutput);
         let autowrap_on = decset!(AutoWrap);
         write!(
             self.terminal,
-            "{string}{}{autowrap_on}{sync_reset}",
+            "{string}{}{autowrap_on}",
             Csi::Sgr(Sgr::Reset)
         )
     }
@@ -212,9 +210,8 @@ where
     {
         use std::fmt::Write as _;
         let mut string = String::with_capacity(content.size_hint().0 * 3);
-        let sync_set = decset!(SynchronizedOutput);
         let autowrap_off = decreset!(AutoWrap);
-        write!(string, "{sync_set}{autowrap_off}").unwrap();
+        write!(string, "{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -268,11 +265,10 @@ where
             }
         }
 
-        let sync_reset = decreset!(SynchronizedOutput);
         let autowrap_on = decset!(AutoWrap);
         write!(
             self.terminal,
-            "{string}{}{autowrap_on}{sync_reset}",
+            "{string}{}{autowrap_on}",
             Csi::Sgr(Sgr::Reset)
         )
     }
