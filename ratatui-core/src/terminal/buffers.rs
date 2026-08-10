@@ -80,6 +80,16 @@ impl<B: Backend> Terminal<B> {
         &mut self.buffers[self.current]
     }
 
+    /// Returns an immutable reference to the previous (most recently drawn) buffer.
+    pub const fn previous_buffer(&self) -> &Buffer {
+        &self.buffers[1 - self.current]
+    }
+
+    /// Returns a mutable reference to the previous (most recently drawn) buffer.
+    pub const fn previous_buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffers[1 - self.current]
+    }
+
     /// Applies the current buffer diff to the backend's active display surface.
     ///
     /// This compares the current buffer with the previous buffer and passes only the changed cells
