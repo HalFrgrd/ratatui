@@ -83,7 +83,7 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), B::Error> {
         let position = position.into();
-        log::info!("Setting cursor position to {:?}", position);
+        // log::info!("Setting cursor position to {:?}", position);
         if matches!(self.viewport, Viewport::Inline(_)) {
             let dy = position.y as i32 - self.inline_cursor_y as i32;
             if dy != 0 {
