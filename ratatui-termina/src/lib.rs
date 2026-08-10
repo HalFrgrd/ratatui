@@ -328,7 +328,7 @@ where
     fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> io::Result<()> {
         use std::fmt::Write as _;
         let mut string = String::new();
-        log::info!("Moving cursor relative by dx={} dy={}", dx, dy);
+        // log::info!("Moving cursor relative by dx={} dy={}", dx, dy);
         if dy < 0 {
             write!(string, "\x1b[{}A", -dy).unwrap();
         } else if dy > 0 {
