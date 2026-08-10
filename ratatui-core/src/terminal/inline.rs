@@ -36,6 +36,11 @@ impl<B: Backend> Terminal<B> {
         }
 
         let old_height = mem::replace(height, new_height);
+        log::info!(
+            "Resizing inline viewport from height {} to {}",
+            old_height,
+            new_height
+        );
         if new_height > old_height {
             let diff = new_height - old_height;
             self.set_cursor_position(Position::new(0, old_height.saturating_sub(1)))?;

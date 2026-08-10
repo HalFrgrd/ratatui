@@ -1,4 +1,4 @@
-use crate::backend::{Backend, ClearType};
+use crate::backend::Backend;
 use crate::layout::Rect;
 use crate::terminal::{Terminal, Viewport};
 
