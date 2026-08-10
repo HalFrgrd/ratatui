@@ -476,7 +476,7 @@ mod tests {
             "completed buffer contains the rendered content"
         );
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
         assert_eq!(
             terminal.frame_count, 1,
@@ -503,7 +503,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(false));
         assert!(terminal.backend().cursor_visible());
         assert_eq!(
             terminal.backend().cursor_position(),
@@ -858,7 +858,7 @@ mod tests {
             "completed buffer contains the rendered content"
         );
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
         assert_eq!(
             terminal.frame_count, 1,

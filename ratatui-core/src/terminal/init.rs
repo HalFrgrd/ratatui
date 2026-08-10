@@ -133,7 +133,7 @@ impl<B: Backend> Terminal<B> {
             backend,
             buffers: [Buffer::empty(viewport_area), Buffer::empty(viewport_area)],
             current: 0,
-            hidden_cursor: false,
+            hidden_cursor: None,
             viewport: options.viewport,
             viewport_area,
             last_known_area: area,
@@ -163,7 +163,7 @@ mod tests {
         assert_eq!(terminal.last_known_area, Rect::new(0, 0, 10, 5));
         assert_eq!(terminal.last_known_cursor_pos, Position::ORIGIN);
         assert_eq!(terminal.current, 0);
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, None);
         assert_eq!(terminal.frame_count, 0);
         assert_eq!(terminal.buffers[0].area, terminal.viewport_area);
         assert_eq!(terminal.buffers[1].area, terminal.viewport_area);

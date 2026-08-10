@@ -378,10 +378,10 @@ where
     ///
     /// This toggles between 0 and 1 and is updated by [`Terminal::swap_buffers`].
     current: usize,
-    /// Whether Ratatui believes it has hidden the cursor.
+    /// Whether Ratatui believes it has hidden the cursor (`Some(true)`), shown it (`Some(false)`), or unknown (`None`).
     ///
     /// This is tracked so [`Drop`] can attempt to restore cursor visibility.
-    hidden_cursor: bool,
+    hidden_cursor: Option<bool>,
     /// The configured [`Viewport`] mode.
     ///
     /// This determines how the initial viewport area is computed during construction, whether
@@ -446,7 +446,7 @@ where
 {
     fn drop(&mut self) {
         // Attempt to restore the cursor state
-        if self.hidden_cursor {
+        if self.hidden_cursor == Some(true) {
             #[allow(unused_variables)]
             if let Err(err) = self.show_cursor() {
                 #[cfg(feature = "std")]

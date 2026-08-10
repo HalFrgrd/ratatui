@@ -13,8 +13,10 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::draw`]: crate::terminal::Terminal::draw
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn hide_cursor(&mut self) -> Result<(), B::Error> {
-        self.backend.hide_cursor()?;
-        self.hidden_cursor = true;
+        if self.hidden_cursor != Some(true) {
+            self.backend.hide_cursor()?;
+            self.hidden_cursor = Some(true);
+        }
         Ok(())
     }
 
@@ -28,8 +30,10 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::draw`]: crate::terminal::Terminal::draw
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn show_cursor(&mut self) -> Result<(), B::Error> {
-        self.backend.show_cursor()?;
-        self.hidden_cursor = false;
+        if self.hidden_cursor != Some(false) {
+            self.backend.show_cursor()?;
+            self.hidden_cursor = Some(false);
+        }
         Ok(())
     }
 
@@ -117,7 +121,7 @@ mod tests {
 
         terminal.hide_cursor().unwrap();
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
     }
 
@@ -129,7 +133,7 @@ mod tests {
         terminal.hide_cursor().unwrap();
         terminal.show_cursor().unwrap();
 
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(false));
         assert!(terminal.backend().cursor_visible());
     }
 
