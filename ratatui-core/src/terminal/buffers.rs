@@ -218,6 +218,22 @@ impl<B: Backend> Terminal<B> {
         Ok(())
     }
 
+    /// Clears the entire terminal screen (including all rows above an inline viewport),
+    /// moves the cursor to (0, 0), and resets the inline viewport origin to row 0.
+    pub fn clear_screen(&mut self) -> Result<(), B::Error> {
+        self.backend.clear_region(ClearType::All)?;
+        self.backend.set_cursor_position(Position::new(0, 0))?;
+        if matches!(self.viewport, Viewport::Inline(_)) {
+            self.inline_cursor_x = 0;
+            self.inline_cursor_y = 0;
+            self.viewport_top = Some(0);
+        }
+        self.buffers[0].reset();
+        self.buffers[1].reset();
+        self.force_full_redraw = true;
+        Ok(())
+    }
+
     /// Clears according to the current viewport and resets the back buffer.
     ///
     /// Unlike [`Terminal::clear`], this does not snapshot and restore the backend cursor
