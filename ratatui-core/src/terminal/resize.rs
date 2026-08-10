@@ -41,6 +41,8 @@ impl<B: Backend> Terminal<B> {
             // Disabled cursor relocation and line-wrapping calculation on resize.
             // Leaving the cursor where it is.
 
+            // self.inline_cursor_x = 0;
+            // self.inline_cursor_y = 0;
             self.set_viewport_area(Rect {
                 x: 0,
                 y: 0,

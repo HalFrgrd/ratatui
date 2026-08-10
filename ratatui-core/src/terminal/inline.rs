@@ -53,6 +53,8 @@ impl<B: Backend> Terminal<B> {
             ..self.viewport_area
         });
 
+        self.update_viewport_top_for_height();
+
         // Assume every cell should be rewritten as we might have scrolled up
         self.buffers[1 - self.current].reset();
         Ok(())
@@ -61,6 +63,11 @@ impl<B: Backend> Terminal<B> {
     /// Returns the current 0-indexed cursor row relative to the inline viewport top (0..H-1).
     pub fn inline_cursor_y(&self) -> u16 {
         self.inline_cursor_y
+    }
+
+    /// Returns the current 0-indexed cursor column relative to the inline viewport origin.
+    pub fn inline_cursor_x(&self) -> u16 {
+        self.inline_cursor_x
     }
 
     /// Returns the owned inline viewport top screen row (0-based), if known.

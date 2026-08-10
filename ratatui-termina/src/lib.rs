@@ -142,7 +142,8 @@ where
     {
         let mut string = String::with_capacity(content.size_hint().0 * 3);
         let sync_set = decset!(SynchronizedOutput);
-        write!(string, "{sync_set}").unwrap();
+        let autowrap_off = decreset!(AutoWrap);
+        write!(string, "{sync_set}{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -187,9 +188,10 @@ where
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
+        let autowrap_on = decset!(AutoWrap);
         write!(
             self.terminal,
-            "{string}{}{sync_reset}",
+            "{string}{}{autowrap_on}{sync_reset}",
             Csi::Sgr(Sgr::Reset)
         )
     }
@@ -201,7 +203,8 @@ where
         use std::fmt::Write as _;
         let mut string = String::with_capacity(content.size_hint().0 * 3);
         let sync_set = decset!(SynchronizedOutput);
-        write!(string, "{sync_set}").unwrap();
+        let autowrap_off = decreset!(AutoWrap);
+        write!(string, "{sync_set}{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -260,9 +263,10 @@ where
         }
 
         let sync_reset = decreset!(SynchronizedOutput);
+        let autowrap_on = decset!(AutoWrap);
         write!(
             self.terminal,
-            "{string}{}{sync_reset}",
+            "{string}{}{autowrap_on}{sync_reset}",
             Csi::Sgr(Sgr::Reset)
         )
     }
