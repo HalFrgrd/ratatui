@@ -35,7 +35,6 @@ impl<B: Backend> Terminal<B> {
                 Viewport::Inline(h) => area.height.min(h),
                 _ => unreachable!(),
             };
-            let old_width = self.viewport_area.width;
             let new_width = area.width;
 
             // Disabled cursor relocation and line-wrapping calculation on resize.

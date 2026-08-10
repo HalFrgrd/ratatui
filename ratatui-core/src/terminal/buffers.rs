@@ -70,6 +70,12 @@ impl<B: Backend> Terminal<B> {
     /// only after a later [`Terminal::flush`] or full draw pass applies the diff. Because this
     /// bypasses the usual render callback structure, it is mainly useful for tests and specialized
     /// integrations that intentionally manage presentation themselves.
+    /// Returns an immutable reference to the current buffer.
+    pub const fn current_buffer(&self) -> &Buffer {
+        &self.buffers[self.current]
+    }
+
+    /// Returns a mutable reference to the current buffer.
     pub const fn current_buffer_mut(&mut self) -> &mut Buffer {
         &mut self.buffers[self.current]
     }
@@ -194,10 +200,6 @@ impl<B: Backend> Terminal<B> {
     pub fn clear(&mut self) -> Result<(), B::Error> {
         if matches!(self.viewport, Viewport::Inline(_)) {
             self.clear_viewport()?;
-            self.backend.clear_region(ClearType::All)?;
-            self.backend.set_cursor_position(Position::ORIGIN)?;
-            self.inline_cursor_x = 0;
-            self.inline_cursor_y = 0;
         } else {
             let original_cursor = self.backend.get_cursor_position()?;
             self.clear_viewport()?;
