@@ -27,7 +27,7 @@ use std::fmt::{self, Write as FmtWrite};
 use std::io::{self, Write};
 
 use ratatui_core::backend::{Backend, ClearType, WindowSize};
-use ratatui_core::buffer::Cell;
+use ratatui_core::buffer::{Cell, CellWidth};
 use ratatui_core::layout::{Position, Size};
 use ratatui_core::style::{Color, Modifier, Style};
 pub use termina;
@@ -151,11 +151,16 @@ where
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
         for (x, y, cell) in content {
-            if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
+            let width = cell.cell_width();
+            if width != 1 || !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
                 let command = Csi::Cursor(cursor_position(Position { x, y })?);
                 write!(string, "{command}").unwrap();
             }
-            last_pos = Some(Position { x, y });
+            if width == 1 {
+                last_pos = Some(Position { x, y });
+            } else {
+                last_pos = None;
+            }
 
             let mut attributes = SgrAttributes::default();
             if cell.fg != fg {
@@ -221,10 +226,15 @@ where
         let mut last_pos: Option<Position> = None;
 
         for (x, y, cell) in content {
-            if last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
+            let width = cell.cell_width();
+            if width != 1 || last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
                 write!(string, "\x1b[{}G", x + 1).unwrap();
             }
-            last_pos = Some(Position { x, y });
+            if width == 1 {
+                last_pos = Some(Position { x, y });
+            } else {
+                last_pos = None;
+            }
 
             let mut attributes = SgrAttributes::default();
             if cell.fg != fg {
@@ -933,5 +943,23 @@ mod tests {
             }
         );
         assert_eq!(one_based(0).unwrap(), OneBased::new(1).unwrap());
+    }
+
+    #[test]
+    fn test_draw_multi_width_character() {
+        let mut backend = backend();
+        let crab = Cell::new("🦀");
+        let a = Cell::new("a");
+        let content = [(0, 0, &crab), (2, 0, &a)];
+
+        backend.draw(content.into_iter()).unwrap();
+
+        let output = backend.terminal.output();
+        let cursor_0 = Csi::Cursor(cursor_position(Position::new(0, 0)).unwrap());
+        let cursor_2 = Csi::Cursor(cursor_position(Position::new(2, 0)).unwrap());
+        assert!(output.contains(&cursor_0.to_string()));
+        assert!(output.contains("🦀"));
+        assert!(output.contains(&cursor_2.to_string()));
+        assert!(output.contains('a'));
     }
 }

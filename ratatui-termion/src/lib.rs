@@ -41,7 +41,7 @@ use std::fmt;
 use std::io::{self, Write};
 
 use ratatui_core::backend::{Backend, ClearType, WindowSize};
-use ratatui_core::buffer::Cell;
+use ratatui_core::buffer::{Cell, CellWidth};
 use ratatui_core::layout::{Position, Size};
 use ratatui_core::style::{Color, Modifier, Style};
 pub use termion;
@@ -220,11 +220,16 @@ where
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
         for (x, y, cell) in content {
-            // Move the cursor if the previous location was not (x - 1, y)
-            if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
+            let width = cell.cell_width();
+            // Move the cursor if the previous location was not (x - 1, y) or cell is not single-width
+            if width != 1 || !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
                 write!(string, "{}", termion::cursor::Goto(x + 1, y + 1)).unwrap();
             }
-            last_pos = Some(Position { x, y });
+            if width == 1 {
+                last_pos = Some(Position { x, y });
+            } else {
+                last_pos = None;
+            }
             if cell.modifier != modifier {
                 write!(
                     string,

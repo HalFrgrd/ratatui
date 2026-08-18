@@ -97,7 +97,7 @@ cfg_if::cfg_if! {
     }
 }
 use ratatui_core::backend::{Backend, ClearType, WindowSize};
-use ratatui_core::buffer::Cell;
+use ratatui_core::buffer::{Cell, CellWidth};
 use ratatui_core::layout::{Position, Size};
 use ratatui_core::style::{Color, Modifier, Style};
 
@@ -240,11 +240,16 @@ where
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
         for (x, y, cell) in content {
-            // Move the cursor if the previous location was not (x - 1, y)
-            if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
+            let width = cell.cell_width();
+            // Move the cursor if the previous location was not (x - 1, y) or cell is not single-width
+            if width != 1 || !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
                 queue!(self.writer, MoveTo(x, y))?;
             }
-            last_pos = Some(Position { x, y });
+            if width == 1 {
+                last_pos = Some(Position { x, y });
+            } else {
+                last_pos = None;
+            }
             if cell.modifier != modifier {
                 let diff = ModifierDiff {
                     from: modifier,
@@ -303,10 +308,15 @@ where
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
         for (x, y, cell) in content {
-            if last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
+            let width = cell.cell_width();
+            if width != 1 || last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
                 queue!(self.writer, crossterm::cursor::MoveToColumn(x))?;
             }
-            last_pos = Some(Position { x, y });
+            if width == 1 {
+                last_pos = Some(Position { x, y });
+            } else {
+                last_pos = None;
+            }
             if cell.modifier != modifier {
                 let diff = ModifierDiff {
                     from: modifier,
