@@ -239,17 +239,24 @@ where
         let mut underline_color = Color::Reset;
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
+        let mut skip_until_x = 0;
+        let mut skip_y = 0;
+
         for (x, y, cell) in content {
+            if y == skip_y && x < skip_until_x {
+                continue;
+            }
             let width = cell.cell_width();
-            // Move the cursor if the previous location was not (x - 1, y) or cell is not single-width
-            if width != 1 || !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
+            skip_until_x = x + width;
+            skip_y = y;
+
+            if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
                 queue!(self.writer, MoveTo(x, y))?;
             }
-            if width == 1 {
-                last_pos = Some(Position { x, y });
-            } else {
-                last_pos = None;
-            }
+            last_pos = Some(Position {
+                x: x + width.saturating_sub(1),
+                y,
+            });
             if cell.modifier != modifier {
                 let diff = ModifierDiff {
                     from: modifier,
@@ -307,16 +314,24 @@ where
         let mut underline_color = Color::Reset;
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
+        let mut skip_until_x = 0;
+        let mut skip_y = 0;
+
         for (x, y, cell) in content {
+            if y == skip_y && x < skip_until_x {
+                continue;
+            }
             let width = cell.cell_width();
-            if width != 1 || last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
+            skip_until_x = x + width;
+            skip_y = y;
+
+            if last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
                 queue!(self.writer, crossterm::cursor::MoveToColumn(x))?;
             }
-            if width == 1 {
-                last_pos = Some(Position { x, y });
-            } else {
-                last_pos = None;
-            }
+            last_pos = Some(Position {
+                x: x + width.saturating_sub(1),
+                y,
+            });
             if cell.modifier != modifier {
                 let diff = ModifierDiff {
                     from: modifier,

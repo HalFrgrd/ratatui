@@ -150,17 +150,25 @@ where
         let mut underline_color = Color::Reset;
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
+        let mut skip_until_x = 0;
+        let mut skip_y = 0;
+
         for (x, y, cell) in content {
+            if y == skip_y && x < skip_until_x {
+                continue;
+            }
             let width = cell.cell_width();
-            if width != 1 || !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
+            skip_until_x = x + width;
+            skip_y = y;
+
+            if !matches!(last_pos, Some(p) if x == p.x + 1 && y == p.y) {
                 let command = Csi::Cursor(cursor_position(Position { x, y })?);
                 write!(string, "{command}").unwrap();
             }
-            if width == 1 {
-                last_pos = Some(Position { x, y });
-            } else {
-                last_pos = None;
-            }
+            last_pos = Some(Position {
+                x: x + width.saturating_sub(1),
+                y,
+            });
 
             let mut attributes = SgrAttributes::default();
             if cell.fg != fg {
@@ -224,17 +232,24 @@ where
         let mut underline_color = Color::Reset;
         let mut modifier = Modifier::empty();
         let mut last_pos: Option<Position> = None;
+        let mut skip_until_x = 0;
+        let mut skip_y = 0;
 
         for (x, y, cell) in content {
+            if y == skip_y && x < skip_until_x {
+                continue;
+            }
             let width = cell.cell_width();
-            if width != 1 || last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
+            skip_until_x = x + width;
+            skip_y = y;
+
+            if last_pos.map_or(x != 0, |p| x != p.x + 1 || y != p.y) {
                 write!(string, "\x1b[{}G", x + 1).unwrap();
             }
-            if width == 1 {
-                last_pos = Some(Position { x, y });
-            } else {
-                last_pos = None;
-            }
+            last_pos = Some(Position {
+                x: x + width.saturating_sub(1),
+                y,
+            });
 
             let mut attributes = SgrAttributes::default();
             if cell.fg != fg {
@@ -956,10 +971,52 @@ mod tests {
 
         let output = backend.terminal.output();
         let cursor_0 = Csi::Cursor(cursor_position(Position::new(0, 0)).unwrap());
-        let cursor_2 = Csi::Cursor(cursor_position(Position::new(2, 0)).unwrap());
         assert!(output.contains(&cursor_0.to_string()));
         assert!(output.contains("🦀"));
-        assert!(output.contains(&cursor_2.to_string()));
         assert!(output.contains('a'));
+    }
+
+    #[test]
+    fn test_draw_relative_line_multi_width_with_continuation_cell() {
+        let mut backend = backend();
+        let crab = Cell::new("🦀");
+        let empty = Cell::EMPTY;
+        let a = Cell::new("a");
+        let b = Cell::new("b");
+        let c = Cell::new("c");
+
+        // Simulates an 80-column line ending with "🦀abc" at cols 75..79
+        let content = [
+            (75, 0, &crab),
+            (76, 0, &empty), // continuation cell in buffer
+            (77, 0, &a),
+            (78, 0, &b),
+            (79, 0, &c),
+        ];
+
+        backend.draw_relative_line(content.into_iter()).unwrap();
+
+        let output = backend.terminal.output();
+        // Should position at column 76 (1-based), output 🦀, and NOT erase column 76/77
+        assert!(output.contains("\x1b[76G"));
+        assert!(output.contains("🦀"));
+        assert!(output.contains("abc"));
+        // Continuation cell (76) should not emit EraseCharacter
+        assert!(!output.contains("\x1b[1X"));
+    }
+
+    #[test]
+    fn test_empty_cells_emit_erase_character() {
+        let mut backend = backend();
+        let empty = Cell::EMPTY;
+        let content = [(0, 0, &empty)];
+
+        backend.draw(content.into_iter()).unwrap();
+
+        let output = backend.terminal.output();
+        let erase = Csi::Edit(termina::escape::csi::Edit::EraseCharacter(1)).to_string();
+        let right = Csi::Cursor(Cursor::Right(1)).to_string();
+        assert!(output.contains(&erase));
+        assert!(output.contains(&right));
     }
 }
