@@ -126,21 +126,23 @@ impl<B: Backend> Terminal<B> {
         };
         let (viewport_area, cursor_pos) = match options.viewport {
             Viewport::Fullscreen => (area, Position::ORIGIN),
-            Viewport::Inline(height) => {
-                compute_inline_size(&mut backend, height, area.as_size(), 0)?
-            }
+            Viewport::Inline(height) => compute_inline_size(&mut backend, height, area.as_size())?,
             Viewport::Fixed(area) => (area, area.as_position()),
         };
         Ok(Self {
             backend,
             buffers: [Buffer::empty(viewport_area), Buffer::empty(viewport_area)],
             current: 0,
-            hidden_cursor: false,
+            hidden_cursor: None,
             viewport: options.viewport,
             viewport_area,
             last_known_area: area,
             last_known_cursor_pos: cursor_pos,
             frame_count: 0,
+            inline_cursor_x: 0,
+            inline_cursor_y: 0,
+            force_full_redraw: false,
+            viewport_top: None,
         })
     }
 }
@@ -161,7 +163,7 @@ mod tests {
         assert_eq!(terminal.last_known_area, Rect::new(0, 0, 10, 5));
         assert_eq!(terminal.last_known_cursor_pos, Position::ORIGIN);
         assert_eq!(terminal.current, 0);
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, None);
         assert_eq!(terminal.frame_count, 0);
         assert_eq!(terminal.buffers[0].area, terminal.viewport_area);
         assert_eq!(terminal.buffers[1].area, terminal.viewport_area);
@@ -202,8 +204,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(terminal.viewport_area, Rect::new(0, 3, 10, 4));
-        assert_eq!(terminal.last_known_cursor_pos, Position { x: 0, y: 3 });
+        assert_eq!(terminal.viewport_area, Rect::new(0, 0, 10, 4));
     }
 
     #[test]
@@ -221,8 +222,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(terminal.viewport_area, Rect::new(0, 6, 10, 4));
-        assert_eq!(terminal.last_known_cursor_pos, Position { x: 0, y: 8 });
+        assert_eq!(terminal.viewport_area, Rect::new(0, 0, 10, 4));
     }
 
     #[test]

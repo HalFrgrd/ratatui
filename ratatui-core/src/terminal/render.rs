@@ -200,13 +200,14 @@ impl<B: Backend> Terminal<B> {
         render_callback(&mut frame).map_err(Into::into)?;
 
         let cursor_position = frame.cursor_position;
+        let cursor_visible = frame.cursor_visible;
 
-        self.apply_buffer_with_cursor(cursor_position)
+        self.apply_buffer_with_cursor(cursor_position, cursor_visible)
     }
 
     /// A low-level function that applies and flushes the current buffer to the backend.
     ///
-    /// This calls [`Terminal::apply_buffer_with_cursor`] with [`None`], which hides the cursor.
+    /// This calls [`Terminal::apply_buffer_with_cursor`] with [`None`] and `false`, which hides the cursor.
     ///
     /// # Examples
     ///
@@ -237,7 +238,7 @@ impl<B: Backend> Terminal<B> {
     /// # }
     /// ```
     pub fn apply_buffer(&mut self) -> Result<CompletedFrame<'_>, B::Error> {
-        self.apply_buffer_with_cursor(None)
+        self.apply_buffer_with_cursor(None, false)
     }
 
     /// A low-level function that applies and flushes the current buffer to the backend and
@@ -282,23 +283,30 @@ impl<B: Backend> Terminal<B> {
     /// "Hello World!".render(custom_buffer.area, &mut custom_buffer);
     ///
     /// terminal.current_buffer_mut().merge(&custom_buffer);
-    /// terminal.apply_buffer_with_cursor(None)?;
+    /// terminal.apply_buffer_with_cursor(None, false)?;
     /// # }
     /// ```
     pub fn apply_buffer_with_cursor(
         &mut self,
         cursor_position: Option<Position>,
+        cursor_visible: bool,
     ) -> Result<CompletedFrame<'_>, B::Error> {
         // Apply the buffer diff to the backend (this is the terminal's "flush" step, distinct
         // from `Backend::flush` below which flushes the backend's output).
         self.flush()?;
 
         // The cursor position can only be changed after the frame is flushed to stdout.
-        match cursor_position {
-            None => self.hide_cursor()?,
-            Some(position) => {
-                self.show_cursor()?;
+        match (cursor_position, cursor_visible) {
+            (Some(position), true) => {
                 self.set_cursor_position(position)?;
+                self.show_cursor()?;
+            }
+            (Some(position), false) => {
+                self.set_cursor_position(position)?;
+                self.hide_cursor()?;
+            }
+            (None, _) => {
+                self.hide_cursor()?;
             }
         }
 
@@ -468,7 +476,7 @@ mod tests {
             "completed buffer contains the rendered content"
         );
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
         assert_eq!(
             terminal.frame_count, 1,
@@ -495,7 +503,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(false));
         assert!(terminal.backend().cursor_visible());
         assert_eq!(
             terminal.backend().cursor_position(),
@@ -663,10 +671,7 @@ mod tests {
             );
         }
 
-        assert_eq!(
-            terminal.backend().buffer()[(viewport_area.x, viewport_area.y)].symbol(),
-            "i"
-        );
+        assert_eq!(terminal.backend().buffer()[(0, 0)].symbol(), "i");
     }
 
     /// Inline viewports are autoresized during `draw`.
@@ -726,8 +731,7 @@ mod tests {
             "inline viewport stays anchored relative to the cursor across a grow"
         );
         assert_eq!(
-            terminal.backend().buffer()[(terminal.viewport_area.x, terminal.viewport_area.y)]
-                .symbol(),
+            terminal.backend().buffer()[(0, 0)].symbol(),
             "g",
             "render output lands at the recomputed viewport origin"
         );
@@ -778,12 +782,11 @@ mod tests {
         );
         assert_eq!(
             terminal.viewport_area,
-            Rect::new(0, 1, 6, 4),
-            "inline viewport is recomputed to stay visible after a shrink"
+            Rect::new(0, 0, 6, 4),
+            "inline viewport is relative"
         );
         assert_eq!(
-            terminal.backend().buffer()[(terminal.viewport_area.x, terminal.viewport_area.y)]
-                .symbol(),
+            terminal.backend().buffer()[(0, 0)].symbol(),
             "s",
             "render output lands at the recomputed viewport origin"
         );
@@ -855,7 +858,7 @@ mod tests {
             "completed buffer contains the rendered content"
         );
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
         assert_eq!(
             terminal.frame_count, 1,

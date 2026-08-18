@@ -106,6 +106,14 @@ impl Cell {
         self.symbol.as_ref().map_or(" ", |s| s.as_str())
     }
 
+    /// Gets the symbol of the cell as an `Option<&str>`.
+    ///
+    /// Returns `None` if no symbol has been set on the cell.
+    #[must_use]
+    pub fn symbol_opt(&self) -> Option<&str> {
+        self.symbol.as_deref()
+    }
+
     /// Merges the symbol of the cell with the one already on the cell, using the provided
     /// [`MergeStrategy`].
     ///

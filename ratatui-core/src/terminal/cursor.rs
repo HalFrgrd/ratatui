@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::layout::Position;
-use crate::terminal::Terminal;
+use crate::terminal::{Terminal, Viewport};
 
 impl<B: Backend> Terminal<B> {
     /// Hides the cursor.
@@ -13,8 +13,10 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::draw`]: crate::terminal::Terminal::draw
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn hide_cursor(&mut self) -> Result<(), B::Error> {
-        self.backend.hide_cursor()?;
-        self.hidden_cursor = true;
+        if self.hidden_cursor != Some(true) {
+            self.backend.hide_cursor()?;
+            self.hidden_cursor = Some(true);
+        }
         Ok(())
     }
 
@@ -28,8 +30,10 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::draw`]: crate::terminal::Terminal::draw
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn show_cursor(&mut self) -> Result<(), B::Error> {
-        self.backend.show_cursor()?;
-        self.hidden_cursor = false;
+        if self.hidden_cursor != Some(false) {
+            self.backend.show_cursor()?;
+            self.hidden_cursor = Some(false);
+        }
         Ok(())
     }
 
@@ -79,9 +83,28 @@ impl<B: Backend> Terminal<B> {
     /// [`Terminal::try_draw`]: crate::terminal::Terminal::try_draw
     pub fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), B::Error> {
         let position = position.into();
-        self.backend.set_cursor_position(position)?;
+        // log::info!("Setting cursor position to {:?}", position);
+        if matches!(self.viewport, Viewport::Inline(_)) {
+            let dy = position.y as i32 - self.inline_cursor_y as i32;
+            if dy != 0 {
+                self.backend.move_cursor_relative(0, dy as i16)?;
+                self.inline_cursor_y = position.y;
+            }
+            if position.x != self.inline_cursor_x {
+                self.backend.set_cursor_column(position.x)?;
+                self.inline_cursor_x = position.x;
+            }
+        } else {
+            self.backend.set_cursor_position(position)?;
+        }
         self.last_known_cursor_pos = position;
         Ok(())
+    }
+
+    /// Resets relative in-memory cursor tracking to (0, 0).
+    pub fn reset_inline_cursor(&mut self) {
+        self.inline_cursor_x = 0;
+        self.inline_cursor_y = 0;
     }
 }
 
@@ -98,7 +121,7 @@ mod tests {
 
         terminal.hide_cursor().unwrap();
 
-        assert!(terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(true));
         assert!(!terminal.backend().cursor_visible());
     }
 
@@ -110,7 +133,7 @@ mod tests {
         terminal.hide_cursor().unwrap();
         terminal.show_cursor().unwrap();
 
-        assert!(!terminal.hidden_cursor);
+        assert_eq!(terminal.hidden_cursor, Some(false));
         assert!(terminal.backend().cursor_visible());
     }
 

@@ -170,6 +170,19 @@ pub trait Backend {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>;
 
+    /// Draw line content starting at the current cursor position without issuing absolute
+    /// cursor positioning commands.
+    ///
+    /// This method is used by [`Viewport::Inline`] during line flushing to ensure that rendering
+    /// relies strictly on relative cursor movements and does not jump to absolute screen
+    /// coordinates.
+    fn draw_relative_line<'a, I>(&mut self, content: I) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = (u16, u16, &'a Cell)> + 'a,
+    {
+        self.draw(content)
+    }
+
     /// Insert `n` line breaks to the terminal screen.
     ///
     /// This method is optional and may not be implemented by all backends.
@@ -230,6 +243,20 @@ pub trait Backend {
     /// # std::io::Result::Ok(())
     /// ```
     fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), Self::Error>;
+
+    /// Move the cursor relative to its current position by `dx` columns and `dy` rows.
+    ///
+    /// Positive `dx` moves right, negative `dx` moves left.
+    /// Positive `dy` moves down, negative `dy` moves up.
+    fn move_cursor_relative(&mut self, _dx: i16, _dy: i16) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Set the horizontal cursor column position (0-based) while preserving the current row.
+    fn set_cursor_column(&mut self, col: u16) -> Result<(), Self::Error> {
+        let pos = self.get_cursor_position()?;
+        self.set_cursor_position(Position { x: col, y: pos.y })
+    }
 
     /// Get the current cursor position on the terminal screen.
     ///
