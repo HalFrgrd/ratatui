@@ -84,6 +84,8 @@ where
     T: Terminal,
 {
     terminal: T,
+    in_sync_frame: bool,
+    sync_buffer: Vec<u8>,
 }
 
 impl<T> TerminaBackend<T>
@@ -92,7 +94,42 @@ where
 {
     /// Creates a backend that writes to the given Termina terminal.
     pub const fn new(terminal: T) -> Self {
-        Self { terminal }
+        Self {
+            terminal,
+            in_sync_frame: false,
+            sync_buffer: Vec::new(),
+        }
+    }
+
+    /// Begins a synchronized terminal update frame.
+    ///
+    /// While a synchronized update is active, writes to the backend are buffered in memory. When
+    /// [`Self::end_synchronized_update`] is called, the buffered output is wrapped in
+    /// `CSI ? 2026 h` (`SynchronizedOutput` set) and `CSI ? 2026 l` (`SynchronizedOutput` reset)
+    /// and flushed to the terminal in a single batch. If no output is written before
+    /// [`Self::end_synchronized_update`], nothing is sent to the terminal.
+    pub const fn begin_synchronized_update(&mut self) {
+        self.in_sync_frame = true;
+    }
+
+    /// Ends a synchronized terminal update frame and flushes any buffered output.
+    ///
+    /// If output was written since [`Self::begin_synchronized_update`], this emits
+    /// `CSI ? 2026 h`, the buffered frame output, and `CSI ? 2026 l`, then flushes the underlying
+    /// terminal. If no output was written, this is a no-op and sends no escape sequences.
+    pub fn end_synchronized_update(&mut self) -> io::Result<()> {
+        self.in_sync_frame = false;
+        if self.sync_buffer.is_empty() {
+            return Ok(());
+        }
+        let sync_reset = decreset!(SynchronizedOutput);
+        let _ = write!(self.sync_buffer, "{sync_reset}");
+        let result = self
+            .terminal
+            .write_all(&self.sync_buffer)
+            .and_then(|()| self.terminal.flush());
+        self.sync_buffer.clear();
+        result
     }
 
     /// Returns the wrapped terminal.
@@ -122,11 +159,26 @@ where
     T: Terminal,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.terminal.write(buf)
+        if self.in_sync_frame {
+            if !buf.is_empty() {
+                if self.sync_buffer.is_empty() {
+                    let sync_set = decset!(SynchronizedOutput);
+                    let _ = write!(self.sync_buffer, "{sync_set}");
+                }
+                self.sync_buffer.extend_from_slice(buf);
+            }
+            Ok(buf.len())
+        } else {
+            self.terminal.write(buf)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.terminal.flush()
+        if self.in_sync_frame {
+            Ok(())
+        } else {
+            self.terminal.flush()
+        }
     }
 }
 
@@ -141,8 +193,6 @@ where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
         let mut string = String::with_capacity(content.size_hint().0 * 3);
-        let autowrap_off = decreset!(AutoWrap);
-        write!(string, "{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -209,10 +259,15 @@ where
             }
         }
 
+        if last_pos.is_none() {
+            return Ok(());
+        }
+
+        let autowrap_off = decreset!(AutoWrap);
         let autowrap_on = decset!(AutoWrap);
         write!(
-            self.terminal,
-            "{string}{}{autowrap_on}",
+            self,
+            "{autowrap_off}{string}{}{autowrap_on}",
             Csi::Sgr(Sgr::Reset)
         )
     }
@@ -223,8 +278,6 @@ where
     {
         use std::fmt::Write as _;
         let mut string = String::with_capacity(content.size_hint().0 * 3);
-        let autowrap_off = decreset!(AutoWrap);
-        write!(string, "{autowrap_off}").unwrap();
 
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
@@ -290,24 +343,29 @@ where
             }
         }
 
+        if last_pos.is_none() {
+            return Ok(());
+        }
+
+        let autowrap_off = decreset!(AutoWrap);
         let autowrap_on = decset!(AutoWrap);
         write!(
-            self.terminal,
-            "{string}{}{autowrap_on}",
+            self,
+            "{autowrap_off}{string}{}{autowrap_on}",
             Csi::Sgr(Sgr::Reset)
         )
     }
 
     fn hide_cursor(&mut self) -> io::Result<()> {
         let command = decreset!(ShowCursor);
-        write!(self.terminal, "{command}")?;
-        self.terminal.flush()
+        write!(self, "{command}")?;
+        Write::flush(self)
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {
         let command = decset!(ShowCursor);
-        write!(self.terminal, "{command}")?;
-        self.terminal.flush()
+        write!(self, "{command}")?;
+        Write::flush(self)
     }
 
     fn get_cursor_position(&mut self) -> io::Result<Position> {
@@ -333,27 +391,38 @@ where
 
     fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
         let command = Csi::Cursor(cursor_position(position.into())?);
-        write!(self.terminal, "{command}")?;
-        self.terminal.flush()
+        write!(self, "{command}")?;
+        Write::flush(self)
     }
 
     fn move_cursor_relative(&mut self, dx: i16, dy: i16) -> io::Result<()> {
+        use std::cmp::Ordering;
         use std::fmt::Write as _;
         let mut string = String::new();
         // log::info!("Moving cursor relative by dx={} dy={}", dx, dy);
-        if dy < 0 {
-            write!(string, "\x1b[{}A", -dy).unwrap();
-        } else if dy > 0 {
-            write!(string, "\x1b[{}B", dy).unwrap();
+        match dy.cmp(&0) {
+            Ordering::Less => {
+                let up = -dy;
+                write!(string, "\x1b[{up}A").unwrap();
+            }
+            Ordering::Greater => {
+                write!(string, "\x1b[{dy}B").unwrap();
+            }
+            Ordering::Equal => {}
         }
-        if dx < 0 {
-            write!(string, "\x1b[{}D", -dx).unwrap();
-        } else if dx > 0 {
-            write!(string, "\x1b[{}C", dx).unwrap();
+        match dx.cmp(&0) {
+            Ordering::Less => {
+                let left = -dx;
+                write!(string, "\x1b[{left}D").unwrap();
+            }
+            Ordering::Greater => {
+                write!(string, "\x1b[{dx}C").unwrap();
+            }
+            Ordering::Equal => {}
         }
         if !string.is_empty() {
-            write!(self.terminal, "{string}")?;
-            self.terminal.flush()?;
+            write!(self, "{string}")?;
+            Write::flush(self)?;
         }
         Ok(())
     }
@@ -361,8 +430,8 @@ where
     fn set_cursor_column(&mut self, col: u16) -> io::Result<()> {
         let col_one = OneBased::from_zero_based(col);
         let command = Csi::Cursor(termina::escape::csi::Cursor::CharacterAbsolute(col_one));
-        write!(self.terminal, "{command}")?;
-        self.terminal.flush()
+        write!(self, "{command}")?;
+        Write::flush(self)
     }
 
     fn clear(&mut self) -> io::Result<()> {
@@ -378,15 +447,18 @@ where
             ClearType::UntilNewLine => Edit::EraseInLine(EraseInLine::EraseToEndOfLine),
         };
         let command = Csi::Edit(edit);
-        write!(self.terminal, "{command}")?;
-        self.terminal.flush()
+        write!(self, "{command}")?;
+        Write::flush(self)
     }
 
     fn append_lines(&mut self, n: u16) -> io::Result<()> {
-        for _ in 0..n {
-            writeln!(self.terminal)?;
+        if n == 0 {
+            return Ok(());
         }
-        self.terminal.flush()
+        for _ in 0..n {
+            writeln!(self)?;
+        }
+        Write::flush(self)
     }
 
     fn size(&self) -> io::Result<Size> {
@@ -406,7 +478,7 @@ where
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.terminal.flush()
+        Write::flush(self)
     }
 
     #[cfg(feature = "scrolling-regions")]
@@ -414,8 +486,8 @@ where
         let margins = Csi::Cursor(set_top_and_bottom_margins(region)?);
         let scroll = Csi::Edit(Edit::ScrollUp(amount.into()));
         let reset = Csi::Cursor(reset_top_and_bottom_margins());
-        write!(self.terminal, "{margins}{scroll}{reset}")?;
-        self.terminal.flush()
+        write!(self, "{margins}{scroll}{reset}")?;
+        Write::flush(self)
     }
 
     #[cfg(feature = "scrolling-regions")]
@@ -423,8 +495,8 @@ where
         let margins = Csi::Cursor(set_top_and_bottom_margins(region)?);
         let scroll = Csi::Edit(Edit::ScrollDown(amount.into()));
         let reset = Csi::Cursor(reset_top_and_bottom_margins());
-        write!(self.terminal, "{margins}{scroll}{reset}")?;
-        self.terminal.flush()
+        write!(self, "{margins}{scroll}{reset}")?;
+        Write::flush(self)
     }
 }
 
@@ -643,6 +715,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TerminaBackend")
             .field("terminal", &self.terminal)
+            .field("in_sync_frame", &self.in_sync_frame)
+            .field("sync_buffer", &self.sync_buffer)
             .finish()
     }
 }
@@ -1018,5 +1092,51 @@ mod tests {
         let right = Csi::Cursor(Cursor::Right(1)).to_string();
         assert!(output.contains(&erase));
         assert!(output.contains(&right));
+    }
+
+    #[test]
+    fn empty_draw_writes_nothing() {
+        let mut backend = backend();
+        backend.draw(std::iter::empty()).unwrap();
+        backend.draw_relative_line(std::iter::empty()).unwrap();
+
+        assert_eq!(backend.terminal.output(), "");
+    }
+
+    #[test]
+    fn synchronized_update_skips_escape_sequences_when_nothing_written() {
+        let mut backend = backend();
+        backend.begin_synchronized_update();
+        backend.draw(std::iter::empty()).unwrap();
+        backend.draw_relative_line(std::iter::empty()).unwrap();
+        backend.append_lines(0).unwrap();
+        backend.move_cursor_relative(0, 0).unwrap();
+        Backend::flush(&mut backend).unwrap();
+        backend.end_synchronized_update().unwrap();
+
+        assert_eq!(backend.terminal.output(), "");
+    }
+
+    #[test]
+    fn synchronized_update_wraps_buffered_writes() {
+        let mut backend = backend();
+        backend.begin_synchronized_update();
+        backend.hide_cursor().unwrap();
+        assert_eq!(
+            backend.terminal.output(),
+            "",
+            "writes should be buffered until end_synchronized_update"
+        );
+        backend.show_cursor().unwrap();
+        backend.end_synchronized_update().unwrap();
+
+        let sync_set = decset!(SynchronizedOutput);
+        let hide_cursor = decreset!(ShowCursor);
+        let show_cursor = decset!(ShowCursor);
+        let sync_reset = decreset!(SynchronizedOutput);
+        assert_eq!(
+            backend.terminal.output(),
+            format!("{sync_set}{hide_cursor}{show_cursor}{sync_reset}")
+        );
     }
 }
